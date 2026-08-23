@@ -41,6 +41,18 @@ def deduplicate_results(results):
     return clean
 
 
+def filter_out_domains(results, domains):
+    filtered = []
+
+    for result in results:
+        url = result.get("url", "").lower()
+        if any(domain.lower() in url for domain in domains):
+            continue
+        filtered.append(result)
+
+    return filtered
+
+
 def search_multiple(queries, max_results=5):
     combined = []
     errors = []
@@ -97,7 +109,6 @@ def find_best_domain_result(results, domains, restaurant_name):
 
 
 def find_best_instagram_profile(results, restaurant_name):
-    """Prefer an actual Instagram account profile over popular/reel/post URLs."""
     candidates = []
 
     for result in results:
@@ -108,7 +119,6 @@ def find_best_instagram_profile(results, restaurant_name):
         if "instagram.com" not in url:
             continue
 
-        # Ignore obvious content/discovery pages when choosing the restaurant profile.
         if any(
             marker in url
             for marker in [
@@ -123,7 +133,6 @@ def find_best_instagram_profile(results, restaurant_name):
 
         score = similarity(restaurant_name, title)
 
-        # Strongly prefer results that look like account-profile snippets.
         if "followers" in snippet.lower():
             score += 0.40
         if "posts" in snippet.lower():
@@ -141,7 +150,7 @@ def find_best_instagram_profile(results, restaurant_name):
 
 
 def resolve_restaurant(restaurant, location):
-    # GENERAL SEARCH
+    # GENERAL SEARCH — Zomato is deliberately excluded from product evidence.
     general_search = search_multiple(
         [
             f"{restaurant} {location}",
@@ -149,48 +158,57 @@ def resolve_restaurant(restaurant, location):
         ],
         max_results=10,
     )
-    general_results = general_search["results"]
-
-    # ZOMATO / DISTRICT DISCOVERY
-    zomato_search = search_multiple(
-        [
-            f"{restaurant} {location} Zomato",
-            f"{restaurant} Zomato {location}",
-            f"{restaurant} {location} District dining",
-            f"{restaurant} {location} zomato restaurant",
-        ],
-        max_results=5,
+    general_results = filter_out_domains(
+        general_search["results"],
+        ["zomato.com"],
     )
 
-    zomato = find_best_domain_result(
-        zomato_search["results"],
-        ["zomato.com", "district.in"],
+    # DISTRICT DISCOVERY — primary dining source.
+    district_search = search_multiple(
+        [
+            f"{restaurant} {location} District dining",
+            f"{restaurant} District {location}",
+            f"site:district.in/dining {restaurant} {location}",
+        ],
+        max_results=6,
+    )
+
+    district_candidates = filter_out_domains(
+        district_search["results"],
+        ["zomato.com"],
+    )
+
+    district = find_best_domain_result(
+        district_candidates,
+        ["district.in"],
         restaurant,
     )
 
-    if not zomato:
-        zomato = find_best_domain_result(
+    if not district:
+        district = find_best_domain_result(
             general_results,
-            ["zomato.com", "district.in"],
+            ["district.in"],
             restaurant,
         )
 
-    # TARGETED DINING-METRIC SEARCH
-    # These queries often surface richer snippets containing rating, price,
-    # cuisines or dining offers even when the canonical listing result does not.
+    # TARGETED DINING-METRIC SEARCH.
     metric_search = search_multiple(
         [
-            f'"{restaurant}" "{location}" rating "for two"',
-            f'"{restaurant}" "{location}" dining rating price',
             f'"{restaurant}" "{location}" cost for two offer',
             f'"{restaurant}" "{location}" restaurant rating reviews price',
             f'"{restaurant}" "{location}" District rating offer',
             f'"{restaurant}" "{location}" Dineout rating offer',
+            f'"{restaurant}" "{location}" cuisine rooftop date night',
         ],
         max_results=8,
     )
 
-    # SWIGGY DINEOUT
+    metric_candidates = filter_out_domains(
+        metric_search["results"],
+        ["zomato.com"],
+    )
+
+    # SWIGGY DINEOUT — secondary dining platform.
     dineout_search = search_multiple(
         [
             f"{restaurant} {location} Swiggy Dineout",
@@ -200,8 +218,13 @@ def resolve_restaurant(restaurant, location):
         max_results=5,
     )
 
-    dineout = find_best_domain_result(
+    dineout_candidates = filter_out_domains(
         dineout_search["results"],
+        ["zomato.com"],
+    )
+
+    dineout = find_best_domain_result(
+        dineout_candidates,
         ["swiggy.com"],
         restaurant,
     )
@@ -223,8 +246,13 @@ def resolve_restaurant(restaurant, location):
         max_results=7,
     )
 
-    instagram = find_best_instagram_profile(
+    instagram_candidates = filter_out_domains(
         instagram_search["results"],
+        ["zomato.com"],
+    )
+
+    instagram = find_best_instagram_profile(
+        instagram_candidates,
         restaurant,
     )
 
@@ -260,21 +288,21 @@ def resolve_restaurant(restaurant, location):
 
     debug = {
         "general_errors": general_search["errors"],
-        "zomato_errors": zomato_search["errors"],
+        "district_errors": district_search["errors"],
         "metric_errors": metric_search["errors"],
         "dineout_errors": dineout_search["errors"],
         "instagram_errors": instagram_search["errors"],
         "website_errors": website_search["errors"],
-        "zomato_candidates": zomato_search["results"],
-        "metric_candidates": metric_search["results"],
-        "dineout_candidates": dineout_search["results"],
-        "instagram_candidates": instagram_search["results"],
+        "district_candidates": district_candidates,
+        "metric_candidates": metric_candidates,
+        "dineout_candidates": dineout_candidates,
+        "instagram_candidates": instagram_candidates,
     }
 
     return {
         "restaurant": restaurant,
         "location": location,
-        "zomato": zomato,
+        "district": district,
         "dineout": dineout,
         "instagram": instagram,
         "website": website,
