@@ -1,7 +1,7 @@
 import streamlit as st
 
 from search_engine import resolve_restaurant
-from collectors import extract_dining_metrics
+from collectors import extract_dining_metrics, extract_instagram_metrics
 
 
 # --------------------------------------------------
@@ -32,7 +32,6 @@ st.caption(
 # --------------------------------------------------
 
 with st.form("restaurant_search"):
-
     col1, col2 = st.columns(2)
 
     with col1:
@@ -58,15 +57,10 @@ with st.form("restaurant_search"):
 # --------------------------------------------------
 
 if submitted:
-
     if not restaurant or not location:
-
-        st.warning(
-            "Please enter both restaurant name and location."
-        )
+        st.warning("Please enter both restaurant name and location.")
 
     else:
-
         # ------------------------------------------
         # DISCOVERY
         # ------------------------------------------
@@ -75,124 +69,78 @@ if submitted:
             "Building restaurant intelligence...",
             expanded=True,
         ) as status:
-
-            st.write(
-                "Searching for restaurant..."
-            )
+            st.write("Searching for restaurant...")
 
             data = resolve_restaurant(
                 restaurant,
                 location,
             )
 
-            st.write(
-                "Identifying public dining platforms..."
+            st.write("Identifying public dining platforms...")
+
+            all_dining_candidates = (
+                data.get("debug", {}).get("zomato_candidates", [])
+                + data.get("debug", {}).get("dineout_candidates", [])
             )
 
             dining_metrics = extract_dining_metrics(
-                primary_result=data["zomato"],
-                supporting_results=data["debug"][
-                    "zomato_candidates"
-                ],
+                primary_result=data.get("zomato"),
+                supporting_results=all_dining_candidates,
             )
 
-            st.write(
-                "Extracting public dining signals..."
+            instagram_metrics = extract_instagram_metrics(
+                data.get("instagram")
             )
+
+            st.write("Extracting public dining and marketing signals...")
 
             status.update(
                 label="Restaurant discovery complete",
                 state="complete",
             )
 
-
         # ------------------------------------------
         # RESTAURANT HEADER
         # ------------------------------------------
 
         st.divider()
-
         st.header(restaurant)
-
         st.caption(location)
-
 
         # ------------------------------------------
         # PUBLIC PROFILES
         # ------------------------------------------
 
-        st.subheader(
-            "Public profiles identified"
-        )
+        st.subheader("Public profiles identified")
 
         profile_columns = st.columns(4)
 
         profiles = [
-            (
-                "Zomato / District",
-                data["zomato"],
-            ),
-            (
-                "Swiggy Dineout",
-                data["dineout"],
-            ),
-            (
-                "Instagram",
-                data["instagram"],
-            ),
-            (
-                "Official Website",
-                data["website"],
-            ),
+            ("Zomato / District", data.get("zomato")),
+            ("Swiggy Dineout", data.get("dineout")),
+            ("Instagram", data.get("instagram")),
+            ("Official Website", data.get("website")),
         ]
 
-        for col, (name, result) in zip(
-            profile_columns,
-            profiles,
-        ):
-
+        for col, (name, result) in zip(profile_columns, profiles):
             with col:
-
-                st.markdown(
-                    f"### {name}"
-                )
+                st.markdown(f"### {name}")
 
                 if result:
-
-                    st.success(
-                        "Found"
-                    )
-
-                    st.write(
-                        result.get(
-                            "title",
-                            "",
-                        )
-                    )
+                    st.success("Found")
+                    st.write(result.get("title", ""))
 
                     if result.get("url"):
-
-                        st.link_button(
-                            "Open source",
-                            result["url"],
-                        )
-
+                        st.link_button("Open source", result["url"])
                 else:
-
-                    st.warning(
-                        "Not confidently identified"
-                    )
-
+                    st.warning("Not confidently identified")
 
         # ------------------------------------------
         # DINING PLATFORM SNAPSHOT
         # ------------------------------------------
 
         st.divider()
-
-        st.subheader(
-            "Dining Platform Snapshot"
-        )
+        st.subheader("Dining Platform Snapshot")
 
         st.caption(
             "Metrics are kept separate by source so values "
@@ -211,22 +159,13 @@ if submitted:
         any_source_found = False
 
         for source in source_priority:
-
-            source_results = dining_metrics[
-                "by_source"
-            ].get(
-                source,
-                [],
-            )
+            source_results = dining_metrics["by_source"].get(source, [])
 
             if not source_results:
                 continue
 
             any_source_found = True
-
-            st.markdown(
-                f"### {source}"
-            )
+            st.markdown(f"### {source}")
 
             rating = None
             reviews = None
@@ -235,257 +174,183 @@ if submitted:
             cuisines = []
 
             for item in source_results:
-
-                if (
-                    rating is None
-                    and item["rating"] is not None
-                ):
+                if rating is None and item["rating"] is not None:
                     rating = item["rating"]
 
-                if (
-                    reviews is None
-                    and item["review_count"] is not None
-                ):
-                    reviews = item[
-                        "review_count"
-                    ]
+                if reviews is None and item["review_count"] is not None:
+                    reviews = item["review_count"]
 
-                if (
-                    price is None
-                    and item["cost_for_two"] is not None
-                ):
-                    price = item[
-                        "cost_for_two"
-                    ]
+                if price is None and item["cost_for_two"] is not None:
+                    price = item["cost_for_two"]
 
                 for offer in item["offers"]:
-
                     if offer not in offers:
-                        offers.append(
-                            offer
-                        )
+                        offers.append(offer)
 
                 for cuisine in item["cuisines"]:
-
                     if cuisine not in cuisines:
-                        cuisines.append(
-                            cuisine
-                        )
+                        cuisines.append(cuisine)
 
+            metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
 
-            # --------------------------------------
-            # SOURCE METRICS
-            # --------------------------------------
-
-            col1, col2, col3, col4 = (
-                st.columns(4)
-            )
-
-            with col1:
-
+            with metric_col1:
                 st.metric(
                     "Rating",
-                    f"{rating:.1f}"
-                    if rating is not None
-                    else "—",
+                    f"{rating:.1f}" if rating is not None else "—",
                 )
 
-
-            with col2:
-
+            with metric_col2:
                 st.metric(
                     "Ratings / Reviews",
-                    f"{reviews:,}"
-                    if reviews is not None
-                    else "—",
+                    f"{reviews:,}" if reviews is not None else "—",
                 )
 
-
-            with col3:
-
+            with metric_col3:
                 st.metric(
                     "Cost for Two",
-                    f"₹{price:,}"
-                    if price is not None
-                    else "—",
+                    f"₹{price:,}" if price is not None else "—",
                 )
 
-
-            with col4:
-
+            with metric_col4:
                 st.metric(
                     "Visible Offer",
-                    offers[0]
-                    if offers
-                    else "—",
+                    offers[0] if offers else "—",
                 )
-
-
-            # --------------------------------------
-            # CUISINE SIGNALS
-            # --------------------------------------
 
             if cuisines:
+                st.write("**Cuisine signals:** " + ", ".join(cuisines))
 
-                st.write(
-                    "**Cuisine signals:** "
-                    + ", ".join(
-                        cuisines
-                    )
-                )
-
-
-            # --------------------------------------
-            # SOURCE EVIDENCE
-            # --------------------------------------
-
-            with st.expander(
-                f"View {source} evidence"
-            ):
-
+            with st.expander(f"View {source} evidence"):
                 for item in source_results:
-
-                    st.markdown(
-                        f"**{item['title']}**"
-                    )
+                    st.markdown(f"**{item['title']}**")
 
                     if item["snippet"]:
-
-                        st.write(
-                            item["snippet"]
-                        )
+                        st.write(item["snippet"])
 
                     if item["url"]:
-
-                        st.markdown(
-                            item["url"]
-                        )
+                        st.markdown(item["url"])
 
                     st.divider()
 
-
         if not any_source_found:
-
             st.warning(
-                "No structured dining metrics "
-                "could be extracted from the "
-                "public search results."
+                "No structured dining metrics could be extracted "
+                "from the public search results."
             )
 
+        # ------------------------------------------
+        # MARKETING TRACTION
+        # ------------------------------------------
+
+        st.divider()
+        st.subheader("Marketing Traction")
+        st.markdown("### Instagram Presence")
+
+        social_col1, social_col2, social_col3, social_col4 = st.columns(4)
+
+        followers = instagram_metrics["followers"]
+        posts = instagram_metrics["posts"]
+        following = instagram_metrics["following"]
+        handle = instagram_metrics["handle"]
+
+        with social_col1:
+            st.metric(
+                "Followers",
+                f"{followers:,}" if followers is not None else "—",
+            )
+
+        with social_col2:
+            st.metric(
+                "Posts",
+                f"{posts:,}" if posts is not None else "—",
+            )
+
+        with social_col3:
+            st.metric(
+                "Following",
+                f"{following:,}" if following is not None else "—",
+            )
+
+        with social_col4:
+            st.metric(
+                "Instagram Handle",
+                f"@{handle}" if handle else "—",
+            )
+
+        if instagram_metrics["bio"]:
+            st.write("**Public profile signal:**")
+            st.write(instagram_metrics["bio"])
+
+        if instagram_metrics["url"]:
+            st.link_button(
+                "Open Instagram",
+                instagram_metrics["url"],
+            )
 
         # ------------------------------------------
         # SEARCH EVIDENCE
         # ------------------------------------------
 
         st.divider()
-
-        st.subheader(
-            "Search evidence"
-        )
+        st.subheader("Search evidence")
 
         with st.expander(
-            "View public results used "
-            "to identify restaurant"
+            "View public results used to identify restaurant"
         ):
-
-            general_results = data.get(
-                "general_results",
-                [],
-            )
+            general_results = data.get("general_results", [])
 
             if not general_results:
-
-                st.write(
-                    "No general search results found."
-                )
-
+                st.write("No general search results found.")
             else:
-
                 for result in general_results:
+                    st.markdown(f"**{result.get('title', '')}**")
 
-                    st.markdown(
-                        f"**{result.get('title', '')}**"
-                    )
+                    if result.get("snippet"):
+                        st.write(result["snippet"])
 
-                    if result.get(
-                        "snippet"
-                    ):
-
-                        st.write(
-                            result["snippet"]
-                        )
-
-                    if result.get(
-                        "url"
-                    ):
-
-                        st.markdown(
-                            result["url"]
-                        )
+                    if result.get("url"):
+                        st.markdown(result["url"])
 
                     st.divider()
-
 
         # ------------------------------------------
         # DEVELOPER DEBUG
         # ------------------------------------------
 
-        with st.expander(
-            "Developer debug"
-        ):
-
-            st.write(
-                "Zomato candidates"
-            )
-
+        with st.expander("Developer debug"):
+            st.write("Zomato candidates")
             st.json(
-                data["debug"].get(
-                    "zomato_candidates",
-                    [],
-                )
+                data.get("debug", {}).get("zomato_candidates", [])
             )
 
-            st.write(
-                "Zomato search errors"
-            )
-
+            st.write("Zomato search errors")
             st.json(
-                data["debug"].get(
-                    "zomato_errors",
-                    [],
-                )
+                data.get("debug", {}).get("zomato_errors", [])
             )
 
-            st.write(
-                "Dineout candidates"
-            )
-
+            st.write("Dineout candidates")
             st.json(
-                data["debug"].get(
-                    "dineout_candidates",
-                    [],
-                )
+                data.get("debug", {}).get("dineout_candidates", [])
             )
 
-            st.write(
-                "Instagram candidates"
-            )
-
+            st.write("Instagram candidates")
             st.json(
-                data["debug"].get(
-                    "instagram_candidates",
-                    [],
-                )
+                data.get("debug", {}).get("instagram_candidates", [])
             )
 
+            st.write("Extracted Instagram metrics")
+            st.json(instagram_metrics)
+
+            st.write("Dining metrics by source")
+            st.json(dining_metrics["by_source"])
 
         # ------------------------------------------
         # CURRENT BUILD STATUS
         # ------------------------------------------
 
         st.info(
-            "Restaurant discovery and source-aware dining "
-            "metric extraction are active. "
-            "Next: direct platform extraction, competitor "
-            "identification and competitive benchmarking."
+            "Restaurant discovery, source-aware dining extraction and "
+            "Instagram traction extraction are active. Next: direct "
+            "platform extraction, competitor identification and "
+            "competitive benchmarking."
         )
