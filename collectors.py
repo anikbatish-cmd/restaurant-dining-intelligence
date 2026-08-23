@@ -59,9 +59,7 @@ def extract_review_count(text):
 
         if match:
             try:
-                return int(
-                    match.group(1).replace(",", "")
-                )
+                return int(match.group(1).replace(",", ""))
             except ValueError:
                 pass
 
@@ -79,9 +77,7 @@ def extract_cost_for_two(text):
 
         if match:
             try:
-                return int(
-                    match.group(1).replace(",", "")
-                )
+                return int(match.group(1).replace(",", ""))
             except ValueError:
                 pass
 
@@ -99,18 +95,12 @@ def extract_offers(text):
     offers = []
 
     for pattern in patterns:
-        matches = re.findall(
-            pattern,
-            text,
-            re.IGNORECASE
-        )
+        matches = re.findall(pattern, text, re.IGNORECASE)
 
         for match in matches:
             clean = match.strip()
 
-            if clean.lower() not in [
-                x.lower() for x in offers
-            ]:
+            if clean.lower() not in [x.lower() for x in offers]:
                 offers.append(clean)
 
     return offers
@@ -134,6 +124,7 @@ def extract_cuisines(text):
         "Beverages",
         "Cafe",
         "Bar Food",
+        "Fusion",
     ]
 
     return [
@@ -147,9 +138,7 @@ def parse_result(result):
     text = get_text(result)
 
     return {
-        "source": identify_source(
-            result.get("url", "")
-        ),
+        "source": identify_source(result.get("url", "")),
         "rating": extract_rating(text),
         "review_count": extract_review_count(text),
         "cost_for_two": extract_cost_for_two(text),
@@ -174,7 +163,6 @@ def extract_dining_metrics(
 
     results.extend(supporting_results)
 
-    # Deduplicate URLs
     unique = {}
     for result in results:
         url = result.get("url", "")
@@ -182,12 +170,8 @@ def extract_dining_metrics(
         if url:
             unique[url] = result
 
-    parsed = [
-        parse_result(result)
-        for result in unique.values()
-    ]
+    parsed = [parse_result(result) for result in unique.values()]
 
-    # Keep each source separate
     by_source = {}
 
     for item in parsed:
@@ -201,4 +185,76 @@ def extract_dining_metrics(
     return {
         "by_source": by_source,
         "all_results": parsed,
+    }
+
+
+def parse_social_number(value):
+    if not value:
+        return None
+
+    value = value.replace(",", "").strip()
+    multiplier = 1
+
+    suffix = value[-1:].upper()
+
+    if suffix == "K":
+        multiplier = 1_000
+        value = value[:-1]
+    elif suffix == "M":
+        multiplier = 1_000_000
+        value = value[:-1]
+    elif suffix == "B":
+        multiplier = 1_000_000_000
+        value = value[:-1]
+
+    try:
+        return int(float(value) * multiplier)
+    except ValueError:
+        return None
+
+
+def extract_instagram_metrics(result):
+    """Extract basic public Instagram account metrics from search-result snippets."""
+    if not result:
+        return {
+            "followers": None,
+            "following": None,
+            "posts": None,
+            "handle": None,
+            "bio": None,
+            "url": None,
+        }
+
+    title = result.get("title", "")
+    snippet = result.get("snippet", "")
+    url = result.get("url", "")
+    text = f"{title} {snippet}"
+
+    follower_match = re.search(
+        r"([\d,.]+[KMB]?)\s+Followers",
+        text,
+        re.IGNORECASE,
+    )
+    following_match = re.search(
+        r"([\d,.]+[KMB]?)\s+Following",
+        text,
+        re.IGNORECASE,
+    )
+    posts_match = re.search(
+        r"([\d,]+)\s+Posts",
+        text,
+        re.IGNORECASE,
+    )
+    handle_match = re.search(
+        r"\(@([A-Za-z0-9._]+)\)",
+        title,
+    )
+
+    return {
+        "followers": parse_social_number(follower_match.group(1)) if follower_match else None,
+        "following": parse_social_number(following_match.group(1)) if following_match else None,
+        "posts": parse_social_number(posts_match.group(1)) if posts_match else None,
+        "handle": handle_match.group(1) if handle_match else None,
+        "bio": snippet or None,
+        "url": url or None,
     }
