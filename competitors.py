@@ -199,10 +199,12 @@ def discover_competitors(restaurant, location, target_summary, target_context=""
         location_text = f"{candidate.get('title', '')} {candidate.get('snippet', '')}".lower()
         location_score = 1.0 if location.lower() in location_text else 0.65
 
+        # Final competitor match prioritizes price band first, then cuisine,
+        # positioning and location. Weights intentionally sum to 100%.
         score = (
-            0.35 * cuisine_similarity
-            + 0.30 * price_similarity
-            + 0.25 * positioning_similarity
+            0.50 * price_similarity
+            + 0.25 * cuisine_similarity
+            + 0.15 * positioning_similarity
             + 0.10 * location_score
         )
         if not target_cuisines or not metrics.get("cuisines"):
@@ -212,8 +214,8 @@ def discover_competitors(restaurant, location, target_summary, target_context=""
 
         candidate["match_score"] = min(score, 1.0)
         candidate["match_components"] = {
-            "cuisine_similarity": cuisine_similarity,
             "price_similarity": price_similarity,
+            "cuisine_similarity": cuisine_similarity,
             "positioning_similarity": positioning_similarity,
             "location_score": location_score,
         }
