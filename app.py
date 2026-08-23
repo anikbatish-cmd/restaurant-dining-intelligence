@@ -137,19 +137,18 @@ if submitted:
             "and automatically identify the competitive cohort."
         )
         with st.expander("Developer debug"):
-
-    st.write(
-        "Zomato candidates"
-    )
-
-    st.json(
-        data["debug"]["zomato_candidates"]
-    )
-
-    st.write(
-        "Search errors"
-    )
-
-    st.json(
-        data["debug"]["zomato_errors"]
-    )
+            st.write("Zomato candidates")
+        
+            st.json(
+                data["debug"]["zomato_candidates"]
+            )
+        
+            st.write("Search errors")
+        
+            st.json(
+                data["debug"]["zomato_errors"]
+            )
+        
+            st.json(
+                data["debug"]["zomato_errors"]
+            )
