@@ -86,23 +86,66 @@ def search_multiple(queries, max_results=5):
     }
 
 
-def find_domain_result(results, domains):
+def clean_name(text):
+    return (
+        text.lower()
+        .replace("-", " ")
+        .replace("|", " ")
+        .replace(",", " ")
+        .strip()
+    )
+
+
+def similarity(a, b):
+    return SequenceMatcher(
+        None,
+        clean_name(a),
+        clean_name(b)
+    ).ratio()
+
+
+def find_best_domain_result(
+    results,
+    domains,
+    restaurant_name
+):
     """
-    Find first search result matching one of the domains.
+    Find the domain result whose title most closely
+    matches the restaurant being searched.
     """
+
+    candidates = []
 
     for result in results:
 
         url = result.get("url", "").lower()
 
-        if any(
+        if not any(
             domain.lower() in url
             for domain in domains
         ):
-            return result
+            continue
 
-    return None
+        title = result.get("title", "")
 
+        score = similarity(
+            restaurant_name,
+            title
+        )
+
+        candidates.append(
+            (score, result)
+        )
+
+    if not candidates:
+        return None
+
+    candidates.sort(
+        key=lambda x: x[0],
+        reverse=True
+    )
+
+    return candidates[0][1]
 
 def resolve_restaurant(restaurant, location):
 
@@ -142,23 +185,24 @@ def resolve_restaurant(restaurant, location):
     # Search dedicated results first,
     # then general results as fallback.
 
-    zomato = find_domain_result(
-        zomato_search["results"],
+    zomato = find_best_domain_result(
+    zomato_search["results"],
+    [
+        "zomato.com",
+        "district.in",
+    ],
+    restaurant,
+    )
+
+   if not zomato:
+    zomato = find_best_domain_result(
+        general_results,
         [
             "zomato.com",
             "district.in",
         ],
+        restaurant,
     )
-
-    if not zomato:
-        zomato = find_domain_result(
-            general_results,
-            [
-                "zomato.com",
-                "district.in",
-            ],
-        )
-
     # --------------------
     # SWIGGY DINEOUT
     # --------------------
@@ -172,16 +216,18 @@ def resolve_restaurant(restaurant, location):
         max_results=5,
     )
 
-    dineout = find_domain_result(
-        dineout_search["results"],
-        ["swiggy.com"],
+    dineout = find_best_domain_result(
+    dineout_search["results"],
+    ["swiggy.com"],
+    restaurant,
     )
 
-    if not dineout:
-        dineout = find_domain_result(
-            general_results,
-            ["swiggy.com"],
-        )
+if not dineout:
+    dineout = find_best_domain_result(
+        general_results,
+        ["swiggy.com"],
+        restaurant,
+    )
 
     # --------------------
     # INSTAGRAM
@@ -196,9 +242,10 @@ def resolve_restaurant(restaurant, location):
         max_results=5,
     )
 
-    instagram = find_domain_result(
-        instagram_search["results"],
-        ["instagram.com"],
+    instagram = find_best_domain_result(
+    instagram_search["results"],
+    ["instagram.com"],
+    restaurant,
     )
 
     # --------------------
