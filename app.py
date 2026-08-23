@@ -5,6 +5,7 @@ from collectors import (
     enrich_dining_metrics_with_pages,
     extract_dining_metrics,
     extract_instagram_metrics,
+    summarize_source_results,
 )
 
 
@@ -98,10 +99,10 @@ if submitted:
                 data.get("instagram")
             )
 
-            st.write("Extracting public dining and marketing signals...")
+            st.write("Structuring verified dining and marketing signals...")
 
             status.update(
-                label="Restaurant discovery complete",
+                label="Restaurant intelligence ready",
                 state="complete",
             )
 
@@ -132,91 +133,127 @@ if submitted:
                 else:
                     st.warning("Not confidently identified")
 
+        # --------------------------------------------------
+        # VERIFIED DINING SNAPSHOT
+        # --------------------------------------------------
+
         st.divider()
-        st.subheader("Dining Platform Snapshot")
+        st.subheader("Verified Dining Snapshot")
         st.caption(
-            "Direct public-page values are preferred when available. "
-            "Search snippets remain as fallback evidence, and sources stay separate."
+            "High-confidence public-page values are prioritised. "
+            "Platform differences are shown rather than averaged away."
         )
 
-        source_priority = [
+        primary_sources = [
             "Zomato",
             "District",
             "Swiggy Dineout",
-            "EazyDiner",
-            "Justdial",
-            "Web",
         ]
 
-        any_source_found = False
+        comparison_rows = []
 
-        for source in source_priority:
-            source_results = dining_metrics["by_source"].get(source, [])
+        for source in primary_sources:
+            summary = summarize_source_results(
+                dining_metrics.get("by_source", {}).get(source, [])
+            )
 
-            if not source_results:
+            if not summary:
                 continue
 
-            any_source_found = True
+            comparison_rows.append(
+                {
+                    "Platform": source,
+                    "Rating": summary["rating"],
+                    "Ratings / Reviews": summary["review_count"],
+                    "Cost for Two": summary["cost_for_two"],
+                    "Top Visible Offer": summary["offers"][0]
+                    if summary["offers"]
+                    else None,
+                    "Confidence": summary["confidence"],
+                }
+            )
+
+        if comparison_rows:
+            st.dataframe(
+                comparison_rows,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Rating": st.column_config.NumberColumn(
+                        format="%.1f"
+                    ),
+                    "Ratings / Reviews": st.column_config.NumberColumn(
+                        format="%d"
+                    ),
+                    "Cost for Two": st.column_config.NumberColumn(
+                        format="₹%d"
+                    ),
+                },
+            )
+        else:
+            st.warning(
+                "No high-confidence primary dining metrics were available."
+            )
+
+        # --------------------------------------------------
+        # PRIMARY SOURCE DETAIL
+        # --------------------------------------------------
+
+        st.subheader("Platform Detail")
+
+        for source in primary_sources:
+            source_results = dining_metrics.get("by_source", {}).get(source, [])
+            summary = summarize_source_results(source_results)
+
+            if not summary:
+                continue
+
             st.markdown(f"### {source}")
-
-            rating = None
-            reviews = None
-            price = None
-            offers = []
-            cuisines = []
-            preferred_method = "Search snippet"
-
-            for item in source_results:
-                if item.get("extraction_method") == "direct_public_page":
-                    preferred_method = "Direct public page"
-
-                if rating is None and item["rating"] is not None:
-                    rating = item["rating"]
-
-                if reviews is None and item["review_count"] is not None:
-                    reviews = item["review_count"]
-
-                if price is None and item["cost_for_two"] is not None:
-                    price = item["cost_for_two"]
-
-                for offer in item["offers"]:
-                    if offer not in offers:
-                        offers.append(offer)
-
-                for cuisine in item["cuisines"]:
-                    if cuisine not in cuisines:
-                        cuisines.append(cuisine)
 
             metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
 
             with metric_col1:
                 st.metric(
                     "Rating",
-                    f"{rating:.1f}" if rating is not None else "—",
+                    f"{summary['rating']:.1f}"
+                    if summary["rating"] is not None
+                    else "—",
                 )
 
             with metric_col2:
                 st.metric(
                     "Ratings / Reviews",
-                    f"{reviews:,}" if reviews is not None else "—",
+                    f"{summary['review_count']:,}"
+                    if summary["review_count"] is not None
+                    else "—",
                 )
 
             with metric_col3:
                 st.metric(
                     "Cost for Two",
-                    f"₹{price:,}" if price is not None else "—",
+                    f"₹{summary['cost_for_two']:,}"
+                    if summary["cost_for_two"] is not None
+                    else "—",
                 )
 
             with metric_col4:
                 st.metric(
                     "Visible Offer",
-                    offers[0] if offers else "—",
+                    summary["offers"][0]
+                    if summary["offers"]
+                    else "—",
                 )
 
-            st.caption(f"Best extraction method available: {preferred_method}")
+            method_label = summary["method"].replace("_", " ").title()
+            st.caption(
+                f"Method: {method_label} · Confidence: {summary['confidence']}"
+            )
 
-            if cuisines:
-                st.write("**Cuisine signals:** " + ", ".join(cuisines))
+            if summary["cuisines"]:
+                st.write(
+                    "**Cuisine signals:** "
+                    + ", ".join(summary["cuisines"])
+                )
 
             with st.expander(f"View {source} evidence"):
                 for item in source_results:
@@ -229,19 +266,64 @@ if submitted:
                         f"Confidence: {confidence}"
                     )
 
-                    if item["snippet"]:
+                    if item.get("snippet"):
                         st.write(item["snippet"])
 
-                    if item["url"]:
+                    if item.get("url"):
                         st.markdown(item["url"])
 
                     st.divider()
 
-        if not any_source_found:
-            st.warning(
-                "No structured dining metrics could be extracted "
-                "from the available public sources."
-            )
+        # --------------------------------------------------
+        # SECONDARY PUBLIC SIGNALS
+        # --------------------------------------------------
+
+        with st.expander("Secondary public dining signals"):
+            for source in ["EazyDiner", "Justdial", "Web"]:
+                source_results = dining_metrics.get("by_source", {}).get(source, [])
+                summary = summarize_source_results(source_results)
+
+                if not summary:
+                    continue
+
+                st.markdown(f"### {source}")
+
+                signal_parts = []
+
+                if summary["rating"] is not None:
+                    signal_parts.append(f"Rating {summary['rating']:.1f}")
+
+                if summary["review_count"] is not None:
+                    signal_parts.append(
+                        f"{summary['review_count']:,} ratings/reviews"
+                    )
+
+                if summary["cost_for_two"] is not None:
+                    signal_parts.append(
+                        f"₹{summary['cost_for_two']:,} for two"
+                    )
+
+                if summary["offers"]:
+                    signal_parts.append(summary["offers"][0])
+
+                if summary["cuisines"]:
+                    signal_parts.append(
+                        ", ".join(summary["cuisines"])
+                    )
+
+                st.write(
+                    " · ".join(signal_parts)
+                    if signal_parts
+                    else "No structured metric extracted."
+                )
+
+                st.caption(
+                    "Secondary signal only — not used as the primary platform benchmark."
+                )
+
+        # --------------------------------------------------
+        # MARKETING TRACTION
+        # --------------------------------------------------
 
         st.divider()
         st.subheader("Marketing Traction")
@@ -288,10 +370,14 @@ if submitted:
                 instagram_metrics["url"],
             )
 
-        st.divider()
-        st.subheader("Search evidence")
+        # --------------------------------------------------
+        # SEARCH EVIDENCE / DEBUG
+        # --------------------------------------------------
 
-        with st.expander("View public results used to identify restaurant"):
+        st.divider()
+        st.subheader("Evidence & Debug")
+
+        with st.expander("View public search evidence"):
             general_results = data.get("general_results", [])
 
             if not general_results:
@@ -309,8 +395,14 @@ if submitted:
                     st.divider()
 
         with st.expander("Developer debug"):
-            st.write("Zomato candidates")
-            st.json(debug_data.get("zomato_candidates", []))
+            st.write("Direct page extraction attempts")
+            st.json(dining_metrics.get("direct_page_debug", []))
+
+            st.write("Extracted Instagram metrics")
+            st.json(instagram_metrics)
+
+            st.write("Dining metrics by source")
+            st.json(dining_metrics.get("by_source", {}))
 
             st.write("Targeted dining metric candidates")
             st.json(debug_data.get("metric_candidates", []))
@@ -318,24 +410,8 @@ if submitted:
             st.write("Dining metric search errors")
             st.json(debug_data.get("metric_errors", []))
 
-            st.write("Dineout candidates")
-            st.json(debug_data.get("dineout_candidates", []))
-
-            st.write("Instagram candidates")
-            st.json(debug_data.get("instagram_candidates", []))
-
-            st.write("Extracted Instagram metrics")
-            st.json(instagram_metrics)
-
-            st.write("Direct page extraction attempts")
-            st.json(dining_metrics.get("direct_page_debug", []))
-
-            st.write("Dining metrics by source")
-            st.json(dining_metrics["by_source"])
-
         st.info(
-            "Restaurant discovery, source-aware snippet extraction, direct "
-            "public-page extraction and Instagram traction are active. "
-            "Next: validate direct extraction reliability, then build the "
-            "competitive cohort and benchmarking engine."
+            "Primary restaurant extraction is now usable. Next: build the "
+            "competitive cohort, benchmark price/rating/reputation, and "
+            "generate consultant-grade diagnostic insights."
         )
