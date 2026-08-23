@@ -1,5 +1,6 @@
 import json
 import re
+from urllib.parse import urlsplit, urlunsplit
 
 import requests
 from bs4 import BeautifulSoup
@@ -30,6 +31,22 @@ def identify_source(url):
         return "Justdial"
 
     return "Web"
+
+
+def canonicalize_restaurant_url(url):
+    if not url:
+        return url
+
+    parts = urlsplit(url)
+    path = parts.path.rstrip("/")
+
+    if "swiggy.com" in parts.netloc.lower():
+        path = re.sub(r"/(photos|menu)$", "", path, flags=re.IGNORECASE)
+
+    if "zomato.com" in parts.netloc.lower():
+        path = re.sub(r"/(menu|reviews)$", "", path, flags=re.IGNORECASE)
+
+    return urlunsplit((parts.scheme, parts.netloc, path, "", ""))
 
 
 def get_text(result):
@@ -104,6 +121,18 @@ def extract_cost_for_two(text):
     return None
 
 
+def normalize_offer(offer):
+    if not offer:
+        return None
+
+    clean = re.sub(r"\s+", " ", offer).strip()
+    clean = re.sub(r"\bUPTO\b", "Up to", clean, flags=re.IGNORECASE)
+    clean = re.sub(r"\bFLAT\b", "Flat", clean, flags=re.IGNORECASE)
+    clean = re.sub(r"\bOFF\b", "OFF", clean, flags=re.IGNORECASE)
+
+    return clean
+
+
 def extract_offers(text):
     patterns = [
         r"(flat\s+\d+%\s+off)",
@@ -113,12 +142,18 @@ def extract_offers(text):
     ]
 
     offers = []
+    seen = set()
 
     for pattern in patterns:
         matches = re.findall(pattern, text, re.IGNORECASE)
         for match in matches:
-            clean = match.strip()
-            if clean.lower() not in [x.lower() for x in offers]:
+            clean = normalize_offer(match)
+            if not clean:
+                continue
+
+            key = clean.lower()
+            if key not in seen:
+                seen.add(key)
                 offers.append(clean)
 
     return offers
@@ -143,6 +178,7 @@ def extract_cuisines(text):
         "Cafe",
         "Bar Food",
         "Fusion",
+        "Multi Cuisine",
     ]
 
     return [
@@ -197,6 +233,61 @@ def extract_dining_metrics(primary_result=None, supporting_results=None):
         "all_results": parsed,
         "direct_page_debug": [],
     }
+
+
+def summarize_source_results(source_results):
+    if not source_results:
+        return None
+
+    ranked = sorted(
+        source_results,
+        key=lambda item: (
+            item.get("confidence") == "High",
+            item.get("extraction_method") == "direct_public_page",
+        ),
+        reverse=True,
+    )
+
+    summary = {
+        "rating": None,
+        "review_count": None,
+        "cost_for_two": None,
+        "offers": [],
+        "cuisines": [],
+        "confidence": "Medium",
+        "method": "search_snippet",
+        "url": None,
+    }
+
+    for item in ranked:
+        if item.get("confidence") == "High":
+            summary["confidence"] = "High"
+
+        if item.get("extraction_method") == "direct_public_page":
+            summary["method"] = "direct_public_page"
+
+        if summary["rating"] is None and item.get("rating") is not None:
+            summary["rating"] = item["rating"]
+
+        if summary["review_count"] is None and item.get("review_count") is not None:
+            summary["review_count"] = item["review_count"]
+
+        if summary["cost_for_two"] is None and item.get("cost_for_two") is not None:
+            summary["cost_for_two"] = item["cost_for_two"]
+
+        if summary["url"] is None and item.get("url"):
+            summary["url"] = item["url"]
+
+        for offer in item.get("offers", []):
+            normalized = normalize_offer(offer)
+            if normalized and normalized.lower() not in [x.lower() for x in summary["offers"]]:
+                summary["offers"].append(normalized)
+
+        for cuisine in item.get("cuisines", []):
+            if cuisine not in summary["cuisines"]:
+                summary["cuisines"].append(cuisine)
+
+    return summary
 
 
 def _walk_json(value):
@@ -264,6 +355,7 @@ def _jsonld_metrics(soup):
 
 
 def extract_direct_page_metrics(url, timeout=7):
+    url = canonicalize_restaurant_url(url)
     source = identify_source(url)
 
     debug = {
@@ -335,7 +427,7 @@ def extract_direct_page_metrics(url, timeout=7):
             "cuisines": cuisines[:12],
             "title": title or f"{source} public page",
             "snippet": "Metrics extracted directly from the publicly accessible restaurant page.",
-            "url": response.url,
+            "url": canonicalize_restaurant_url(response.url),
             "extraction_method": "direct_public_page",
             "confidence": "High",
         }
@@ -354,11 +446,12 @@ def enrich_dining_metrics_with_pages(dining_metrics, urls):
     seen = set()
 
     for url in urls:
-        if not url or url in seen:
+        canonical_url = canonicalize_restaurant_url(url)
+        if not canonical_url or canonical_url in seen:
             continue
 
-        seen.add(url)
-        result, debug = extract_direct_page_metrics(url)
+        seen.add(canonical_url)
+        result, debug = extract_direct_page_metrics(canonical_url)
         dining_metrics.setdefault("direct_page_debug", []).append(debug)
 
         if not result:
@@ -366,8 +459,6 @@ def enrich_dining_metrics_with_pages(dining_metrics, urls):
 
         source = result["source"]
         source_results = dining_metrics.setdefault("by_source", {}).setdefault(source, [])
-
-        # Put direct extraction first so the UI prefers it over snippets.
         source_results.insert(0, result)
         dining_metrics.setdefault("all_results", []).insert(0, result)
 
