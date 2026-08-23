@@ -1,7 +1,11 @@
 import streamlit as st
 
 from search_engine import resolve_restaurant
-from collectors import extract_dining_metrics, extract_instagram_metrics
+from collectors import (
+    enrich_dining_metrics_with_pages,
+    extract_dining_metrics,
+    extract_instagram_metrics,
+)
 
 
 st.set_page_config(
@@ -55,15 +59,39 @@ if submitted:
 
             st.write("Identifying public dining platforms...")
 
+            debug_data = data.get("debug", {})
             all_dining_candidates = (
-                data.get("debug", {}).get("zomato_candidates", [])
-                + data.get("debug", {}).get("dineout_candidates", [])
-                + data.get("debug", {}).get("metric_candidates", [])
+                debug_data.get("zomato_candidates", [])
+                + debug_data.get("dineout_candidates", [])
+                + debug_data.get("metric_candidates", [])
             )
 
             dining_metrics = extract_dining_metrics(
                 primary_result=data.get("zomato"),
                 supporting_results=all_dining_candidates,
+            )
+
+            st.write("Checking public restaurant pages for richer metrics...")
+
+            direct_urls = []
+
+            if data.get("zomato") and data["zomato"].get("url"):
+                direct_urls.append(data["zomato"]["url"])
+
+            if data.get("dineout") and data["dineout"].get("url"):
+                direct_urls.append(data["dineout"]["url"])
+
+            for candidate in all_dining_candidates:
+                candidate_url = candidate.get("url", "")
+                lower_url = candidate_url.lower()
+
+                if "district.in/dining/" in lower_url:
+                    direct_urls.append(candidate_url)
+                    break
+
+            dining_metrics = enrich_dining_metrics_with_pages(
+                dining_metrics,
+                direct_urls,
             )
 
             instagram_metrics = extract_instagram_metrics(
@@ -107,8 +135,8 @@ if submitted:
         st.divider()
         st.subheader("Dining Platform Snapshot")
         st.caption(
-            "Metrics are kept separate by source so values "
-            "from different platforms are not mixed together."
+            "Direct public-page values are preferred when available. "
+            "Search snippets remain as fallback evidence, and sources stay separate."
         )
 
         source_priority = [
@@ -136,8 +164,12 @@ if submitted:
             price = None
             offers = []
             cuisines = []
+            preferred_method = "Search snippet"
 
             for item in source_results:
+                if item.get("extraction_method") == "direct_public_page":
+                    preferred_method = "Direct public page"
+
                 if rating is None and item["rating"] is not None:
                     rating = item["rating"]
 
@@ -181,12 +213,21 @@ if submitted:
                     offers[0] if offers else "—",
                 )
 
+            st.caption(f"Best extraction method available: {preferred_method}")
+
             if cuisines:
                 st.write("**Cuisine signals:** " + ", ".join(cuisines))
 
             with st.expander(f"View {source} evidence"):
                 for item in source_results:
+                    method = item.get("extraction_method", "search_snippet")
+                    confidence = item.get("confidence", "Medium")
+
                     st.markdown(f"**{item['title']}**")
+                    st.caption(
+                        f"Method: {method.replace('_', ' ').title()} · "
+                        f"Confidence: {confidence}"
+                    )
 
                     if item["snippet"]:
                         st.write(item["snippet"])
@@ -199,7 +240,7 @@ if submitted:
         if not any_source_found:
             st.warning(
                 "No structured dining metrics could be extracted "
-                "from the public search results."
+                "from the available public sources."
             )
 
         st.divider()
@@ -250,9 +291,7 @@ if submitted:
         st.divider()
         st.subheader("Search evidence")
 
-        with st.expander(
-            "View public results used to identify restaurant"
-        ):
+        with st.expander("View public results used to identify restaurant"):
             general_results = data.get("general_results", [])
 
             if not general_results:
@@ -271,39 +310,32 @@ if submitted:
 
         with st.expander("Developer debug"):
             st.write("Zomato candidates")
-            st.json(
-                data.get("debug", {}).get("zomato_candidates", [])
-            )
+            st.json(debug_data.get("zomato_candidates", []))
 
             st.write("Targeted dining metric candidates")
-            st.json(
-                data.get("debug", {}).get("metric_candidates", [])
-            )
+            st.json(debug_data.get("metric_candidates", []))
 
             st.write("Dining metric search errors")
-            st.json(
-                data.get("debug", {}).get("metric_errors", [])
-            )
+            st.json(debug_data.get("metric_errors", []))
 
             st.write("Dineout candidates")
-            st.json(
-                data.get("debug", {}).get("dineout_candidates", [])
-            )
+            st.json(debug_data.get("dineout_candidates", []))
 
             st.write("Instagram candidates")
-            st.json(
-                data.get("debug", {}).get("instagram_candidates", [])
-            )
+            st.json(debug_data.get("instagram_candidates", []))
 
             st.write("Extracted Instagram metrics")
             st.json(instagram_metrics)
+
+            st.write("Direct page extraction attempts")
+            st.json(dining_metrics.get("direct_page_debug", []))
 
             st.write("Dining metrics by source")
             st.json(dining_metrics["by_source"])
 
         st.info(
-            "Restaurant discovery, source-aware dining extraction and "
-            "Instagram traction extraction are active. Next: validate "
-            "targeted metric extraction, then build direct competitor "
-            "identification and competitive benchmarking."
+            "Restaurant discovery, source-aware snippet extraction, direct "
+            "public-page extraction and Instagram traction are active. "
+            "Next: validate direct extraction reliability, then build the "
+            "competitive cohort and benchmarking engine."
         )
