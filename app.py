@@ -4,32 +4,17 @@ from search_engine import resolve_restaurant
 from collectors import extract_dining_metrics, extract_instagram_metrics
 
 
-# --------------------------------------------------
-# PAGE CONFIG
-# --------------------------------------------------
-
 st.set_page_config(
     page_title="Dining Intelligence",
     page_icon="🍽️",
     layout="wide",
 )
 
-
-# --------------------------------------------------
-# HEADER
-# --------------------------------------------------
-
 st.title("🍽️ Dining Intelligence")
-
 st.caption(
     "Public dining, competitive and marketing intelligence "
     "for restaurant consultants."
 )
-
-
-# --------------------------------------------------
-# SEARCH FORM
-# --------------------------------------------------
 
 with st.form("restaurant_search"):
     col1, col2 = st.columns(2)
@@ -52,19 +37,11 @@ with st.form("restaurant_search"):
     )
 
 
-# --------------------------------------------------
-# REPORT
-# --------------------------------------------------
-
 if submitted:
     if not restaurant or not location:
         st.warning("Please enter both restaurant name and location.")
 
     else:
-        # ------------------------------------------
-        # DISCOVERY
-        # ------------------------------------------
-
         with st.status(
             "Building restaurant intelligence...",
             expanded=True,
@@ -81,6 +58,7 @@ if submitted:
             all_dining_candidates = (
                 data.get("debug", {}).get("zomato_candidates", [])
                 + data.get("debug", {}).get("dineout_candidates", [])
+                + data.get("debug", {}).get("metric_candidates", [])
             )
 
             dining_metrics = extract_dining_metrics(
@@ -99,20 +77,11 @@ if submitted:
                 state="complete",
             )
 
-        # ------------------------------------------
-        # RESTAURANT HEADER
-        # ------------------------------------------
-
         st.divider()
         st.header(restaurant)
         st.caption(location)
 
-        # ------------------------------------------
-        # PUBLIC PROFILES
-        # ------------------------------------------
-
         st.subheader("Public profiles identified")
-
         profile_columns = st.columns(4)
 
         profiles = [
@@ -135,13 +104,8 @@ if submitted:
                 else:
                     st.warning("Not confidently identified")
 
-        # ------------------------------------------
-        # DINING PLATFORM SNAPSHOT
-        # ------------------------------------------
-
         st.divider()
         st.subheader("Dining Platform Snapshot")
-
         st.caption(
             "Metrics are kept separate by source so values "
             "from different platforms are not mixed together."
@@ -238,10 +202,6 @@ if submitted:
                 "from the public search results."
             )
 
-        # ------------------------------------------
-        # MARKETING TRACTION
-        # ------------------------------------------
-
         st.divider()
         st.subheader("Marketing Traction")
         st.markdown("### Instagram Presence")
@@ -287,10 +247,6 @@ if submitted:
                 instagram_metrics["url"],
             )
 
-        # ------------------------------------------
-        # SEARCH EVIDENCE
-        # ------------------------------------------
-
         st.divider()
         st.subheader("Search evidence")
 
@@ -313,19 +269,20 @@ if submitted:
 
                     st.divider()
 
-        # ------------------------------------------
-        # DEVELOPER DEBUG
-        # ------------------------------------------
-
         with st.expander("Developer debug"):
             st.write("Zomato candidates")
             st.json(
                 data.get("debug", {}).get("zomato_candidates", [])
             )
 
-            st.write("Zomato search errors")
+            st.write("Targeted dining metric candidates")
             st.json(
-                data.get("debug", {}).get("zomato_errors", [])
+                data.get("debug", {}).get("metric_candidates", [])
+            )
+
+            st.write("Dining metric search errors")
+            st.json(
+                data.get("debug", {}).get("metric_errors", [])
             )
 
             st.write("Dineout candidates")
@@ -344,13 +301,9 @@ if submitted:
             st.write("Dining metrics by source")
             st.json(dining_metrics["by_source"])
 
-        # ------------------------------------------
-        # CURRENT BUILD STATUS
-        # ------------------------------------------
-
         st.info(
             "Restaurant discovery, source-aware dining extraction and "
-            "Instagram traction extraction are active. Next: direct "
-            "platform extraction, competitor identification and "
-            "competitive benchmarking."
+            "Instagram traction extraction are active. Next: validate "
+            "targeted metric extraction, then build direct competitor "
+            "identification and competitive benchmarking."
         )
