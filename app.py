@@ -2,6 +2,7 @@ import streamlit as st
 
 from search_engine import resolve_restaurant
 
+from collectors import extract_dining_metrics
 
 st.set_page_config(
     page_title="Dining Intelligence",
@@ -60,6 +61,11 @@ if submitted:
                 location,
             )
 
+            dining_metrics = extract_dining_metrics(
+                primary_result=data["zomato"],
+                supporting_results=data["debug"]["zomato_candidates"],
+            )
+
             st.write("Identifying public dining platforms...")
             st.write("Checking online presence...")
 
@@ -84,6 +90,97 @@ if submitted:
             ("Instagram", data["instagram"]),
             ("Official Website", data["website"]),
         ]
+
+        st.divider()
+    
+        st.subheader("Dining Snapshot")
+        
+        col1, col2, col3, col4 = st.columns(4)
+
+        with st.expander(
+            "View evidence behind dining snapshot"
+        ):
+        
+            for item in dining_metrics[
+                "evidence"
+            ]:
+        
+                st.markdown(
+                    f"**{item['title']}**"
+                )
+        
+                st.write(
+                    item["snippet"]
+                )
+        
+                if item["url"]:
+                    st.markdown(
+                        item["url"]
+                    )
+
+        st.divider()
+        
+        with col1:
+        
+            rating = dining_metrics["rating"]
+        
+            st.metric(
+                "Dining Rating",
+                f"{rating:.1f}"
+                if rating
+                else "—",
+            )
+        
+        
+        with col2:
+        
+            reviews = dining_metrics[
+                "review_count"
+            ]
+        
+            st.metric(
+                "Public Review / Rating Count",
+                f"{reviews:,}"
+                if reviews
+                else "—",
+            )
+        
+        
+        with col3:
+        
+            price = dining_metrics[
+                "cost_for_two"
+            ]
+        
+            st.metric(
+                "Cost for Two",
+                f"₹{price:,}"
+                if price
+                else "—",
+            )
+        
+        
+        with col4:
+        
+            offers = dining_metrics[
+                "offers"
+            ]
+        
+            st.metric(
+                "Visible Offer",
+                offers[0]
+                if offers
+                else "—",
+            )
+
+        if dining_metrics["cuisines"]:
+
+        st.write(
+            "**Cuisine signals:** "
+            + ", ".join(
+                dining_metrics["cuisines"]
+            )
+        )
 
         for col, (name, result) in zip(cols, profiles):
 
