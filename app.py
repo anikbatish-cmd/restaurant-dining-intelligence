@@ -125,7 +125,7 @@ if submitted:
             "Public profiles identified"
         )
 
-        cols = st.columns(4)
+        profile_columns = st.columns(4)
 
         profiles = [
             (
@@ -147,7 +147,7 @@ if submitted:
         ]
 
         for col, (name, result) in zip(
-            cols,
+            profile_columns,
             profiles,
         ):
 
@@ -170,10 +170,12 @@ if submitted:
                         )
                     )
 
-                    st.link_button(
-                        "Open source",
-                        result["url"],
-                    )
+                    if result.get("url"):
+
+                        st.link_button(
+                            "Open source",
+                            result["url"],
+                        )
 
                 else:
 
@@ -183,127 +185,192 @@ if submitted:
 
 
         # ------------------------------------------
-        # DINING SNAPSHOT
+        # DINING PLATFORM SNAPSHOT
         # ------------------------------------------
 
         st.divider()
 
         st.subheader(
-            "Dining Snapshot"
+            "Dining Platform Snapshot"
         )
 
-        col1, col2, col3, col4 = (
-            st.columns(4)
+        st.caption(
+            "Metrics are kept separate by source so values "
+            "from different platforms are not mixed together."
         )
 
+        source_priority = [
+            "Zomato",
+            "District",
+            "Swiggy Dineout",
+            "EazyDiner",
+            "Justdial",
+            "Web",
+        ]
 
-        # RATING
+        any_source_found = False
 
-        with col1:
+        for source in source_priority:
 
-            rating = dining_metrics[
-                "rating"
-            ]
-
-            st.metric(
-                "Dining Rating",
-                f"{rating:.1f}"
-                if rating is not None
-                else "—",
+            source_results = dining_metrics[
+                "by_source"
+            ].get(
+                source,
+                [],
             )
 
+            if not source_results:
+                continue
 
-        # REVIEW COUNT
+            any_source_found = True
 
-        with col2:
-
-            reviews = dining_metrics[
-                "review_count"
-            ]
-
-            st.metric(
-                "Public Review / Rating Count",
-                f"{reviews:,}"
-                if reviews is not None
-                else "—",
+            st.markdown(
+                f"### {source}"
             )
 
+            rating = None
+            reviews = None
+            price = None
+            offers = []
+            cuisines = []
 
-        # COST FOR TWO
+            for item in source_results:
 
-        with col3:
+                if (
+                    rating is None
+                    and item["rating"] is not None
+                ):
+                    rating = item["rating"]
 
-            price = dining_metrics[
-                "cost_for_two"
-            ]
-
-            st.metric(
-                "Cost for Two",
-                f"₹{price:,}"
-                if price is not None
-                else "—",
-            )
-
-
-        # OFFER
-
-        with col4:
-
-            offers = dining_metrics[
-                "offers"
-            ]
-
-            st.metric(
-                "Visible Offer",
-                offers[0]
-                if offers
-                else "—",
-            )
-
-
-        # ------------------------------------------
-        # CUISINE SIGNALS
-        # ------------------------------------------
-
-        if dining_metrics["cuisines"]:
-
-            st.write(
-                "**Cuisine signals:** "
-                + ", ".join(
-                    dining_metrics[
-                        "cuisines"
+                if (
+                    reviews is None
+                    and item["review_count"] is not None
+                ):
+                    reviews = item[
+                        "review_count"
                     ]
-                )
+
+                if (
+                    price is None
+                    and item["cost_for_two"] is not None
+                ):
+                    price = item[
+                        "cost_for_two"
+                    ]
+
+                for offer in item["offers"]:
+
+                    if offer not in offers:
+                        offers.append(
+                            offer
+                        )
+
+                for cuisine in item["cuisines"]:
+
+                    if cuisine not in cuisines:
+                        cuisines.append(
+                            cuisine
+                        )
+
+
+            # --------------------------------------
+            # SOURCE METRICS
+            # --------------------------------------
+
+            col1, col2, col3, col4 = (
+                st.columns(4)
             )
 
+            with col1:
 
-        # ------------------------------------------
-        # DINING EVIDENCE
-        # ------------------------------------------
-
-        with st.expander(
-            "View evidence behind dining snapshot"
-        ):
-
-            for item in dining_metrics[
-                "evidence"
-            ]:
-
-                st.markdown(
-                    f"**{item['title']}**"
+                st.metric(
+                    "Rating",
+                    f"{rating:.1f}"
+                    if rating is not None
+                    else "—",
                 )
+
+
+            with col2:
+
+                st.metric(
+                    "Ratings / Reviews",
+                    f"{reviews:,}"
+                    if reviews is not None
+                    else "—",
+                )
+
+
+            with col3:
+
+                st.metric(
+                    "Cost for Two",
+                    f"₹{price:,}"
+                    if price is not None
+                    else "—",
+                )
+
+
+            with col4:
+
+                st.metric(
+                    "Visible Offer",
+                    offers[0]
+                    if offers
+                    else "—",
+                )
+
+
+            # --------------------------------------
+            # CUISINE SIGNALS
+            # --------------------------------------
+
+            if cuisines:
 
                 st.write(
-                    item["snippet"]
+                    "**Cuisine signals:** "
+                    + ", ".join(
+                        cuisines
+                    )
                 )
 
-                if item["url"]:
+
+            # --------------------------------------
+            # SOURCE EVIDENCE
+            # --------------------------------------
+
+            with st.expander(
+                f"View {source} evidence"
+            ):
+
+                for item in source_results:
 
                     st.markdown(
-                        item["url"]
+                        f"**{item['title']}**"
                     )
 
-                st.divider()
+                    if item["snippet"]:
+
+                        st.write(
+                            item["snippet"]
+                        )
+
+                    if item["url"]:
+
+                        st.markdown(
+                            item["url"]
+                        )
+
+                    st.divider()
+
+
+        if not any_source_found:
+
+            st.warning(
+                "No structured dining metrics "
+                "could be extracted from the "
+                "public search results."
+            )
 
 
         # ------------------------------------------
@@ -317,28 +384,46 @@ if submitted:
         )
 
         with st.expander(
-            "View public results used to identify restaurant"
+            "View public results used "
+            "to identify restaurant"
         ):
 
-            for result in data[
-                "general_results"
-            ]:
+            general_results = data.get(
+                "general_results",
+                [],
+            )
 
-                st.markdown(
-                    f"**{result['title']}**"
-                )
+            if not general_results:
 
                 st.write(
-                    result["snippet"]
+                    "No general search results found."
                 )
 
-                if result["url"]:
+            else:
+
+                for result in general_results:
 
                     st.markdown(
-                        result["url"]
+                        f"**{result.get('title', '')}**"
                     )
 
-                st.divider()
+                    if result.get(
+                        "snippet"
+                    ):
+
+                        st.write(
+                            result["snippet"]
+                        )
+
+                    if result.get(
+                        "url"
+                    ):
+
+                        st.markdown(
+                            result["url"]
+                        )
+
+                    st.divider()
 
 
         # ------------------------------------------
@@ -354,19 +439,43 @@ if submitted:
             )
 
             st.json(
-                data["debug"][
-                    "zomato_candidates"
-                ]
+                data["debug"].get(
+                    "zomato_candidates",
+                    [],
+                )
             )
 
             st.write(
-                "Search errors"
+                "Zomato search errors"
             )
 
             st.json(
-                data["debug"][
-                    "zomato_errors"
-                ]
+                data["debug"].get(
+                    "zomato_errors",
+                    [],
+                )
+            )
+
+            st.write(
+                "Dineout candidates"
+            )
+
+            st.json(
+                data["debug"].get(
+                    "dineout_candidates",
+                    [],
+                )
+            )
+
+            st.write(
+                "Instagram candidates"
+            )
+
+            st.json(
+                data["debug"].get(
+                    "instagram_candidates",
+                    [],
+                )
             )
 
 
@@ -375,7 +484,8 @@ if submitted:
         # ------------------------------------------
 
         st.info(
-            "Dining metric extraction is active. "
-            "Next: automatically identify and benchmark "
-            "the competitive cohort."
+            "Restaurant discovery and source-aware dining "
+            "metric extraction are active. "
+            "Next: direct platform extraction, competitor "
+            "identification and competitive benchmarking."
         )
