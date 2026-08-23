@@ -1,39 +1,67 @@
 import re
 
 
-def combine_result_text(result):
+def identify_source(url):
+    url = (url or "").lower()
+
+    if "zomato.com" in url:
+        return "Zomato"
+
+    if "district.in" in url:
+        return "District"
+
+    if "swiggy.com" in url:
+        return "Swiggy Dineout"
+
+    if "eazydiner.com" in url:
+        return "EazyDiner"
+
+    if "justdial.com" in url:
+        return "Justdial"
+
+    return "Web"
+
+
+def get_text(result):
     if not result:
         return ""
 
-    return " ".join(
-        [
-            result.get("title", ""),
-            result.get("snippet", ""),
-        ]
-    )
+    return " ".join([
+        result.get("title", ""),
+        result.get("snippet", "")
+    ])
 
 
 def extract_rating(text):
-    """
-    Find rating such as 4.3.
-    """
-
     patterns = [
-        r"\brated\s+([1-5]\.\d)\b",
-        r"\b([1-5]\.\d)\s+(?:based on|rating|ratings|reviews)",
-        r"\b([1-5]\.\d)\b",
+        r"rated\s+([1-5]\.\d)",
+        r"\b([1-5]\.\d)\s+(?:rating|ratings|reviews)",
     ]
 
     for pattern in patterns:
-        match = re.search(
-            pattern,
-            text,
-            re.IGNORECASE,
-        )
+        match = re.search(pattern, text, re.IGNORECASE)
+
+        if match:
+            return float(match.group(1))
+
+    return None
+
+
+def extract_review_count(text):
+    patterns = [
+        r"based on\s+([\d,]+)\s+(?:customer\s+)?reviews",
+        r"([\d,]+)\s+ratings",
+        r"([\d,]+)\s+reviews",
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
 
         if match:
             try:
-                return float(match.group(1))
+                return int(
+                    match.group(1).replace(",", "")
+                )
             except ValueError:
                 pass
 
@@ -41,111 +69,55 @@ def extract_rating(text):
 
 
 def extract_cost_for_two(text):
-    """
-    Extract ₹2500 for two / Rs 2500 for two.
-    """
-
     patterns = [
         r"₹\s*([\d,]+)\s*(?:for two|for 2)",
         r"Rs\.?\s*([\d,]+)\s*(?:for two|for 2)",
-        r"([\d,]+)\s*(?:for two|for 2)",
     ]
 
     for pattern in patterns:
-        match = re.search(
-            pattern,
-            text,
-            re.IGNORECASE,
-        )
+        match = re.search(pattern, text, re.IGNORECASE)
 
         if match:
-            value = (
-                match
-                .group(1)
-                .replace(",", "")
-            )
-
             try:
-                return int(value)
+                return int(
+                    match.group(1).replace(",", "")
+                )
             except ValueError:
                 pass
 
     return None
 
 
-def extract_offer(text):
-    """
-    Extract visible dining offer.
-    """
-
+def extract_offers(text):
     patterns = [
         r"(flat\s+\d+%\s+off)",
-        r"(up to\s+\d+%\s+off)",
+        r"(up\s+to\s+\d+%\s+off)",
         r"(upto\s+\d+%\s+off)",
-        r"(\d+%\s+off)",
+        r"(\d+%\s+discount)",
     ]
 
     offers = []
 
     for pattern in patterns:
-
         matches = re.findall(
             pattern,
             text,
-            re.IGNORECASE,
+            re.IGNORECASE
         )
 
         for match in matches:
             clean = match.strip()
 
-            if clean not in offers:
+            if clean.lower() not in [
+                x.lower() for x in offers
+            ]:
                 offers.append(clean)
 
     return offers
 
 
-def extract_review_count(text):
-    """
-    Extract counts from sentences like:
-    'Rated 4.3 based on 3956 Customer Reviews'
-    """
-
-    patterns = [
-        r"based on\s+([\d,]+)\s+(?:customer\s+)?reviews",
-        r"([\d,]+)\s+reviews",
-        r"([\d,]+)\s+ratings",
-    ]
-
-    for pattern in patterns:
-        match = re.search(
-            pattern,
-            text,
-            re.IGNORECASE,
-        )
-
-        if match:
-
-            value = (
-                match
-                .group(1)
-                .replace(",", "")
-            )
-
-            try:
-                return int(value)
-            except ValueError:
-                pass
-
-    return None
-
-
-def extract_cuisine_candidates(text):
-    """
-    Lightweight cuisine extraction.
-    We will improve this later.
-    """
-
-    known_cuisines = [
+def extract_cuisines(text):
+    known = [
         "North Indian",
         "Chinese",
         "Italian",
@@ -164,77 +136,69 @@ def extract_cuisine_candidates(text):
         "Bar Food",
     ]
 
-    found = []
+    return [
+        cuisine
+        for cuisine in known
+        if cuisine.lower() in text.lower()
+    ]
 
-    for cuisine in known_cuisines:
 
-        if cuisine.lower() in text.lower():
-            found.append(cuisine)
+def parse_result(result):
+    text = get_text(result)
 
-    return found
+    return {
+        "source": identify_source(
+            result.get("url", "")
+        ),
+        "rating": extract_rating(text),
+        "review_count": extract_review_count(text),
+        "cost_for_two": extract_cost_for_two(text),
+        "offers": extract_offers(text),
+        "cuisines": extract_cuisines(text),
+        "title": result.get("title", ""),
+        "snippet": result.get("snippet", ""),
+        "url": result.get("url", ""),
+    }
 
 
 def extract_dining_metrics(
     primary_result=None,
     supporting_results=None,
 ):
-    """
-    Combine multiple public search results into one
-    best-effort dining snapshot.
-    """
-
     supporting_results = supporting_results or []
 
-    all_results = []
+    results = []
 
     if primary_result:
-        all_results.append(primary_result)
+        results.append(primary_result)
 
-    all_results.extend(supporting_results)
+    results.extend(supporting_results)
 
-    rating = None
-    cost_for_two = None
-    review_count = None
-    offers = []
-    cuisines = []
-    evidence = []
+    # Deduplicate URLs
+    unique = {}
+    for result in results:
+        url = result.get("url", "")
 
-    for result in all_results:
+        if url:
+            unique[url] = result
 
-        text = combine_result_text(result)
+    parsed = [
+        parse_result(result)
+        for result in unique.values()
+    ]
 
-        if not rating:
-            rating = extract_rating(text)
+    # Keep each source separate
+    by_source = {}
 
-        if not cost_for_two:
-            cost_for_two = extract_cost_for_two(text)
+    for item in parsed:
+        source = item["source"]
 
-        if not review_count:
-            review_count = extract_review_count(text)
+        if source not in by_source:
+            by_source[source] = []
 
-        for offer in extract_offer(text):
-
-            if offer not in offers:
-                offers.append(offer)
-
-        for cuisine in extract_cuisine_candidates(text):
-
-            if cuisine not in cuisines:
-                cuisines.append(cuisine)
-
-        evidence.append(
-            {
-                "title": result.get("title", ""),
-                "url": result.get("url", ""),
-                "snippet": result.get("snippet", ""),
-            }
-        )
+        by_source[source].append(item)
 
     return {
-        "rating": rating,
-        "review_count": review_count,
-        "cost_for_two": cost_for_two,
-        "offers": offers,
-        "cuisines": cuisines,
-        "evidence": evidence,
+        "by_source": by_source,
+        "all_results": parsed,
     }
