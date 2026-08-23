@@ -43,6 +43,11 @@ def search_web(query, max_results=10):
         return {"results": [], "error": str(exc)}
 
 
+def clear_search_cache():
+    """Clear low-level public-search cache for an explicit user refresh."""
+    search_web.cache_clear()
+
+
 def deduplicate_results(results):
     seen = set()
     clean = []
@@ -213,7 +218,6 @@ def find_best_domain_result(results, domains, restaurant_name):
         title = result.get("title", "")
         score = similarity(restaurant_name, title)
 
-        # Prefer restaurant-detail pages over category/home/book-only pages.
         if "/dining/" in url and not url.rstrip("/").endswith("/dining"):
             score += 0.08
         if url.rstrip("/").endswith("/book"):
@@ -490,7 +494,6 @@ def collect_public_intelligence(
 
     discovery_results = []
     for query in discovery_queries:
-        # Tag each result with the exact discovery query that surfaced it.
         response = search_web(query, 8)
         for result in response["results"]:
             item = dict(result)
