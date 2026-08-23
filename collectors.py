@@ -1,7 +1,10 @@
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+from functools import lru_cache
 from statistics import median
+from time import perf_counter
 from urllib.parse import urlsplit, urlunsplit
 
 import requests
@@ -320,20 +323,31 @@ def _jsonld_metrics(soup):
     return output
 
 
-def extract_direct_page_metrics(url, timeout=8):
+@lru_cache(maxsize=128)
+def extract_direct_page_metrics(url, timeout=6):
     url = canonicalize_restaurant_url(url)
     source = identify_source(url)
-    debug = {"source": source, "url": url, "status_code": None, "error": None}
+    started = perf_counter()
+    debug = {
+        "source": source,
+        "url": url,
+        "status_code": None,
+        "error": None,
+        "elapsed_ms": None,
+    }
     try:
         response = requests.get(url, headers=HEADERS, timeout=timeout, allow_redirects=True)
         debug["status_code"] = response.status_code
         if response.status_code != 200:
             debug["error"] = f"HTTP {response.status_code}"
+            debug["elapsed_ms"] = round((perf_counter() - started) * 1000)
             return None, debug
+
         soup = BeautifulSoup(response.text, "html.parser")
         json_metrics = _jsonld_metrics(soup)
         visible_text = soup.get_text(" ", strip=True)
         combined_text = f"{visible_text} {response.text}"
+
         rating = json_metrics["rating"] or extract_rating(combined_text)
         review_count = json_metrics["review_count"] or extract_review_count(combined_text)
         cost_for_two = json_metrics["cost_for_two"] or extract_cost_for_two(combined_text)
@@ -344,45 +358,96 @@ def extract_direct_page_metrics(url, timeout=8):
                 cuisines.append(cuisine)
         positioning_tags = extract_positioning_tags(visible_text)
         title = soup.title.get_text(" ", strip=True) if soup.title else ""
-        found_any = any([rating is not None, review_count is not None, cost_for_two is not None, bool(offers), bool(cuisines), bool(positioning_tags)])
+
+        found_any = any(
+            [
+                rating is not None,
+                review_count is not None,
+                cost_for_two is not None,
+                bool(offers),
+                bool(cuisines),
+                bool(positioning_tags),
+            ]
+        )
         if not found_any:
             debug["error"] = "Page loaded, but no supported dining metrics were detected."
+            debug["elapsed_ms"] = round((perf_counter() - started) * 1000)
             return None, debug
+
         result = {
-            "source": source, "rating": rating, "review_count": review_count,
-            "cost_for_two": cost_for_two, "offers": offers[:6],
+            "source": source,
+            "rating": rating,
+            "review_count": review_count,
+            "cost_for_two": cost_for_two,
+            "offers": offers[:6],
             "discount_percent": extract_discount_percent(offers),
-            "cuisines": cuisines[:12], "positioning_tags": positioning_tags[:12],
-            "address": json_metrics["address"], "name": json_metrics["name"],
+            "cuisines": cuisines[:12],
+            "positioning_tags": positioning_tags[:12],
+            "address": json_metrics["address"],
+            "name": json_metrics["name"],
             "title": title or f"{source} public page",
             "snippet": "Metrics extracted directly from the publicly accessible restaurant page.",
             "url": canonicalize_restaurant_url(response.url),
-            "extraction_method": "direct_public_page", "confidence": "High",
+            "extraction_method": "direct_public_page",
+            "confidence": "High",
             "captured_at": datetime.now(timezone.utc).isoformat(),
         }
+        debug["elapsed_ms"] = round((perf_counter() - started) * 1000)
         return result, debug
+
     except requests.RequestException as exc:
         debug["error"] = str(exc)
+        debug["elapsed_ms"] = round((perf_counter() - started) * 1000)
         return None, debug
     except Exception as exc:
         debug["error"] = f"Parser error: {exc}"
+        debug["elapsed_ms"] = round((perf_counter() - started) * 1000)
         return None, debug
 
 
 def enrich_dining_metrics_with_pages(dining_metrics, urls):
+    canonical_urls = []
     seen = set()
     for url in urls:
         canonical_url = canonicalize_restaurant_url(url)
         if not canonical_url or canonical_url in seen:
             continue
         seen.add(canonical_url)
-        result, debug = extract_direct_page_metrics(canonical_url)
+        canonical_urls.append(canonical_url)
+
+    if not canonical_urls:
+        return dining_metrics
+
+    workers = min(3, len(canonical_urls))
+    fetched = []
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
+        future_map = {
+            executor.submit(extract_direct_page_metrics, url): url
+            for url in canonical_urls
+        }
+        for future in as_completed(future_map):
+            try:
+                result, debug = future.result()
+            except Exception as exc:
+                result = None
+                debug = {
+                    "source": identify_source(future_map[future]),
+                    "url": future_map[future],
+                    "status_code": None,
+                    "error": str(exc),
+                    "elapsed_ms": None,
+                }
+            fetched.append((result, debug))
+
+    fetched.sort(key=lambda pair: pair[1].get("source", ""))
+    for result, debug in fetched:
         dining_metrics.setdefault("direct_page_debug", []).append(debug)
         if not result:
             continue
         source_results = dining_metrics.setdefault("by_source", {}).setdefault(result["source"], [])
         source_results.insert(0, result)
         dining_metrics.setdefault("all_results", []).insert(0, result)
+
     return dining_metrics
 
 
@@ -393,11 +458,14 @@ def parse_social_number(value):
     multiplier = 1
     suffix = value[-1:].upper()
     if suffix == "K":
-        multiplier = 1_000; value = value[:-1]
+        multiplier = 1_000
+        value = value[:-1]
     elif suffix == "M":
-        multiplier = 1_000_000; value = value[:-1]
+        multiplier = 1_000_000
+        value = value[:-1]
     elif suffix == "B":
-        multiplier = 1_000_000_000; value = value[:-1]
+        multiplier = 1_000_000_000
+        value = value[:-1]
     try:
         return int(float(value) * multiplier)
     except ValueError:
@@ -423,6 +491,87 @@ def extract_instagram_metrics(result):
         "bio": snippet or None,
         "url": url or None,
     }
+
+
+def extract_instagram_snapshots(results, canonical_url=None):
+    """Turn search-visible Instagram observations into an auditable freshness table."""
+    snapshots = []
+    canonical_key = (canonical_url or "").rstrip("/").lower()
+
+    for result in results or []:
+        url = result.get("url", "")
+        if "instagram.com" not in url.lower():
+            continue
+
+        text = f"{result.get('title', '')} {result.get('snippet', '')}"
+        follower_match = re.search(r"([\d,.]+[KMB]?)\s+Followers", text, re.IGNORECASE)
+        following_match = re.search(r"([\d,.]+[KMB]?)\s+Following", text, re.IGNORECASE)
+        posts_match = re.search(r"([\d,]+)\s+Posts", text, re.IGNORECASE)
+
+        if not any([follower_match, following_match, posts_match]):
+            continue
+
+        lower_url = url.lower()
+        if "/stories/" in lower_url:
+            observation_type = "Story snapshot"
+            reliability = "Low"
+            use = "Historical/stale-prone context"
+        elif lower_url.rstrip("/").endswith("/reels"):
+            observation_type = "Reels profile"
+            reliability = "Medium"
+            use = "Freshness cross-check"
+        elif "/popular/" in lower_url:
+            observation_type = "Discovery page"
+            reliability = "Low"
+            use = "Discovery context only"
+        elif "/reel/" in lower_url or "/p/" in lower_url:
+            observation_type = "Content page"
+            reliability = "Low"
+            use = "Content evidence only"
+        else:
+            observation_type = "Profile"
+            reliability = "High"
+            use = "Profile benchmark candidate"
+
+        selected = bool(canonical_key and lower_url.rstrip("/") == canonical_key)
+        if selected:
+            use = "Selected canonical profile"
+            reliability = "High"
+
+        snapshots.append(
+            {
+                "Observation": observation_type,
+                "Followers": parse_social_number(follower_match.group(1)) if follower_match else None,
+                "Following": parse_social_number(following_match.group(1)) if following_match else None,
+                "Posts": parse_social_number(posts_match.group(1)) if posts_match else None,
+                "Selected": selected,
+                "Reliability": reliability,
+                "How used": use,
+                "URL": url,
+            }
+        )
+
+    selected_followers = next(
+        (row["Followers"] for row in snapshots if row["Selected"] and row["Followers"] is not None),
+        None,
+    )
+    for row in snapshots:
+        if selected_followers and row["Followers"] is not None:
+            row["Follower delta vs selected"] = row["Followers"] - selected_followers
+            row["Follower delta %"] = (row["Followers"] / selected_followers - 1) * 100
+        else:
+            row["Follower delta vs selected"] = None
+            row["Follower delta %"] = None
+
+    snapshots.sort(
+        key=lambda row: (
+            row["Selected"],
+            row["Reliability"] == "High",
+            row["Reliability"] == "Medium",
+        ),
+        reverse=True,
+    )
+    return snapshots
 
 
 CONTENT_THEME_MAP = {
@@ -469,10 +618,14 @@ def extract_instagram_content_items(results, restaurant_handle=None):
         author = author_match.group(1) if author_match else None
         owned = bool(restaurant_handle and (restaurant_handle in (author or "").lower() or restaurant_handle in title.lower()))
         items.append({
-            "title": title, "url": url, "snippet": snippet, "likes": likes,
+            "title": title,
+            "url": url,
+            "snippet": snippet,
+            "likes": likes,
             "comments": comments,
             "engagement": (likes or 0) + (comments or 0) if likes is not None or comments is not None else None,
-            "author": author, "type": "Owned" if owned else "Creator / UGC",
+            "author": author,
+            "type": "Owned" if owned else "Creator / UGC",
             "theme": classify_content_theme(text),
         })
     return items
@@ -480,14 +633,25 @@ def extract_instagram_content_items(results, restaurant_handle=None):
 
 def summarize_content_items(items):
     if not items:
-        return {"sample_size": 0, "owned_count": 0, "creator_count": 0, "median_owned_engagement": None, "median_creator_engagement": None, "creator_lift": None, "themes": []}
+        return {
+            "sample_size": 0,
+            "owned_count": 0,
+            "creator_count": 0,
+            "median_owned_engagement": None,
+            "median_creator_engagement": None,
+            "creator_lift": None,
+            "themes": [],
+        }
     owned = [x for x in items if x["type"] == "Owned"]
     creator = [x for x in items if x["type"] != "Owned"]
     owned_engagement = [x["engagement"] for x in owned if x["engagement"] is not None]
     creator_engagement = [x["engagement"] for x in creator if x["engagement"] is not None]
     theme_data = {}
     for item in items:
-        bucket = theme_data.setdefault(item["theme"], {"theme": item["theme"], "posts": 0, "engagement_values": []})
+        bucket = theme_data.setdefault(
+            item["theme"],
+            {"theme": item["theme"], "posts": 0, "engagement_values": []},
+        )
         bucket["posts"] += 1
         if item["engagement"] is not None:
             bucket["engagement_values"].append(item["engagement"])
@@ -496,12 +660,23 @@ def summarize_content_items(items):
         values = bucket.pop("engagement_values")
         bucket["median_visible_engagement"] = median(values) if values else None
         themes.append(bucket)
-    themes.sort(key=lambda row: (row["median_visible_engagement"] is not None, row["median_visible_engagement"] or 0, row["posts"]), reverse=True)
+    themes.sort(
+        key=lambda row: (
+            row["median_visible_engagement"] is not None,
+            row["median_visible_engagement"] or 0,
+            row["posts"],
+        ),
+        reverse=True,
+    )
     owned_median = median(owned_engagement) if owned_engagement else None
     creator_median = median(creator_engagement) if creator_engagement else None
     creator_lift = creator_median / owned_median if owned_median and creator_median is not None else None
     return {
-        "sample_size": len(items), "owned_count": len(owned), "creator_count": len(creator),
-        "median_owned_engagement": owned_median, "median_creator_engagement": creator_median,
-        "creator_lift": creator_lift, "themes": themes,
+        "sample_size": len(items),
+        "owned_count": len(owned),
+        "creator_count": len(creator),
+        "median_owned_engagement": owned_median,
+        "median_creator_engagement": creator_median,
+        "creator_lift": creator_lift,
+        "themes": themes,
     }
