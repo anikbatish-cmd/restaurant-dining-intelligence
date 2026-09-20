@@ -48,6 +48,7 @@ def _search_error_rows(debug_data, public_intel):
         "metric_errors": "Resolver · metrics",
         "dineout_errors": "Resolver · Dineout",
         "instagram_errors": "Resolver · Instagram",
+        "supporting_errors": "Resolver · supporting sources",
         "website_errors": "Resolver · website",
     }
     for key, label in mapping.items():
@@ -68,6 +69,7 @@ def build_report(restaurant, location):
     # that could leak metrics from nearby restaurants into the target.
     candidate_pool = (
         debug_data.get("metric_candidates", [])
+        + debug_data.get("supporting_candidates", [])
         + data.get("general_results", [])
     )
 
@@ -86,7 +88,7 @@ def build_report(restaurant, location):
     # Supporting platforms are accepted only when the result title strongly
     # matches the requested restaurant. This is intentionally conservative:
     # missing data is better than a confidently wrong metric.
-    for domain in ["eazydiner.com", "justdial.com"]:
+    for domain in ["eazydiner.com", "justdial.com", "tripadvisor.", "magicpin."]:
         matches = []
         for result in candidate_pool:
             if domain not in (result.get("url") or "").lower():
@@ -135,6 +137,8 @@ def build_report(restaurant, location):
             "Swiggy Dineout",
             "EazyDiner",
             "Justdial",
+            "Tripadvisor",
+            "Magicpin",
             "Web",
         ]
     }
