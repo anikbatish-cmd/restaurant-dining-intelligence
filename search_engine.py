@@ -321,6 +321,14 @@ def resolve_restaurant(restaurant, location):
             f"{restaurant} {location} Instagram",
             f"{restaurant} Instagram followers posts",
         ],
+        "supporting": [
+            f'site:eazydiner.com "{restaurant}" "{location}"',
+            f'site:justdial.com "{restaurant}" "{location}" restaurant',
+            f'site:tripadvisor.in "{restaurant}" "{location}" restaurant',
+            f'site:magicpin.in "{restaurant}" "{location}"',
+            f'"{restaurant}" "{location}" "for two" restaurant',
+            f'"{restaurant}" "{location}" rating reviews restaurant',
+        ],
         "website": [
             f"{restaurant} {location} official website",
         ],
@@ -334,6 +342,7 @@ def resolve_restaurant(restaurant, location):
             "metric": 7,
             "dineout": 6,
             "instagram": 8,
+            "supporting": 6,
             "website": 8,
         },
     )
@@ -374,6 +383,11 @@ def resolve_restaurant(restaurant, location):
         restaurant,
     )
 
+    supporting_candidates = filter_out_domains(
+        plan["supporting"]["results"],
+        EXCLUDED_PRODUCT_DOMAINS,
+    )
+
     instagram_candidates = filter_out_domains(
         plan["instagram"]["results"],
         EXCLUDED_PRODUCT_DOMAINS + LOW_VALUE_INSTAGRAM_DOMAINS,
@@ -409,6 +423,7 @@ def resolve_restaurant(restaurant, location):
         "metric_errors": plan["metric"]["errors"],
         "dineout_errors": plan["dineout"]["errors"],
         "instagram_errors": plan["instagram"]["errors"],
+        "supporting_errors": plan["supporting"]["errors"],
         "website_errors": plan["website"]["errors"],
         "district_candidates": district_candidates,
         "district_candidate_scores": annotate_domain_candidates(
@@ -419,6 +434,7 @@ def resolve_restaurant(restaurant, location):
         "metric_candidates": metric_candidates,
         "dineout_candidates": dineout_candidates,
         "instagram_candidates": instagram_candidates,
+        "supporting_candidates": supporting_candidates,
         "search_elapsed_ms": plan["elapsed_ms"],
     }
 
