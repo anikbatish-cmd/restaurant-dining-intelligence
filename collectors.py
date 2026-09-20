@@ -31,6 +31,10 @@ def identify_source(url):
         return "EazyDiner"
     if "justdial.com" in url:
         return "Justdial"
+    if "tripadvisor." in url:
+        return "Tripadvisor"
+    if "magicpin." in url:
+        return "Magicpin"
     if "instagram.com" in url:
         return "Instagram"
     if "facebook.com" in url:
