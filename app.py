@@ -25,24 +25,24 @@ st.markdown(
     """
     <style>
         :root {
-            --bg:#06100d;
-            --panel:#0d1a16;
-            --panel2:#11221c;
-            --line:rgba(175,222,199,.13);
-            --text:#f2f7f4;
-            --muted:#91a79d;
-            --green:#8ef0ba;
-            --green2:#48c98a;
-            --amber:#f0c76b;
-            --red:#ff7c87;
-            --blue:#83b8ff;
-            --purple:#c5a6ff;
+            --bg:#07111f;
+            --panel:#0d1b2a;
+            --panel2:#13243a;
+            --line:rgba(137,190,255,.16);
+            --text:#f7f9fc;
+            --muted:#93a7bf;
+            --green:#55d7ff;
+            --green2:#4aa3ff;
+            --amber:#ffc857;
+            --red:#ff7d73;
+            --blue:#69b7ff;
+            --purple:#b89cff;
         }
         .stApp {
             background:
-                radial-gradient(circle at 10% -10%, rgba(55,150,105,.20), transparent 32rem),
-                radial-gradient(circle at 92% 5%, rgba(64,90,156,.14), transparent 30rem),
-                linear-gradient(180deg,#07110e,#050a08 56%);
+                radial-gradient(circle at 10% -10%, rgba(43,112,190,.22), transparent 32rem),
+                radial-gradient(circle at 92% 5%, rgba(84,214,255,.10), transparent 30rem),
+                linear-gradient(180deg,#07111f,#050b14 62%);
             color:var(--text);
         }
         [data-testid="stHeader"]{background:transparent;}
@@ -51,22 +51,22 @@ st.markdown(
         p,label,.stCaption{color:#c1cec8}
         .brandbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;gap:1rem;}
         .brandname{display:flex;align-items:center;gap:.65rem;font-weight:850;font-size:1.03rem;}
-        .brandmark{width:31px;height:31px;border-radius:9px;background:linear-gradient(145deg,#a4f7c9,#3aa777);box-shadow:0 0 28px rgba(88,215,151,.22)}
+        .brandmark{width:31px;height:31px;border-radius:9px;background:linear-gradient(145deg,#69dcff,#4776ff);box-shadow:0 0 28px rgba(84,214,255,.22)}
         .micro{font-size:.69rem;text-transform:uppercase;letter-spacing:.14em;font-weight:800;color:#70887d}
-        .hero{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:28px;padding:1.45rem 1.65rem;background:linear-gradient(125deg,rgba(19,43,34,.98),rgba(9,17,14,.95));box-shadow:0 26px 80px rgba(0,0,0,.26);margin-bottom:1rem;}
-        .hero:before{content:"";position:absolute;width:410px;height:410px;border-radius:50%;right:-145px;top:-215px;background:radial-gradient(circle,rgba(135,240,184,.23),transparent 68%)}
+        .hero{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:28px;padding:1.45rem 1.65rem;background:linear-gradient(125deg,rgba(16,39,67,.98),rgba(8,18,32,.97));box-shadow:0 26px 80px rgba(0,0,0,.26);margin-bottom:1rem;}
+        .hero:before{content:"";position:absolute;width:410px;height:410px;border-radius:50%;right:-145px;top:-215px;background:radial-gradient(circle,rgba(84,214,255,.18),transparent 68%)}
         .hero h1{font-size:clamp(2rem,4vw,3.4rem);line-height:.94;max-width:900px;margin:.45rem 0 .8rem;font-weight:900;}
-        .hero-copy{max-width:820px;color:#a6b9b0;font-size:1.02rem;line-height:1.6}
-        .pillrow{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.2rem}.pill{border:1px solid rgba(143,240,189,.16);background:rgba(143,240,189,.06);padding:.4rem .7rem;border-radius:999px;font-size:.75rem;color:#cae8d8}
+        .hero-copy{max-width:820px;color:#9eb2c9;font-size:1.02rem;line-height:1.6}
+        .pillrow{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.2rem}.pill{border:1px solid rgba(84,214,255,.18);background:rgba(84,214,255,.07);padding:.4rem .7rem;border-radius:999px;font-size:.75rem;color:#cceeff}
         .story{border:1px solid rgba(143,240,189,.18);background:linear-gradient(135deg,rgba(27,52,42,.72),rgba(12,23,19,.74));border-radius:22px;padding:1.15rem 1.25rem;margin:.8rem 0 1.1rem;}
         .story-line{font-size:1.02rem;line-height:1.52;color:#dce7e1;margin:.34rem 0}.story-line:before{content:"↳";color:#7de0aa;margin-right:.6rem}
-        .metriccard{min-height:128px;border:1px solid var(--line);border-radius:20px;padding:1.05rem 1.05rem;background:linear-gradient(180deg,rgba(22,39,33,.92),rgba(11,21,17,.93));}
-        .metriclabel{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;font-weight:800;color:#779085}.metricvalue{font-size:1.95rem;font-weight:900;margin-top:.42rem;color:#f7fbf9}.metricsub{font-size:.74rem;line-height:1.4;color:#80958b;margin-top:.43rem}
+        .metriccard{min-height:128px;border:1px solid var(--line);border-radius:20px;padding:1.05rem 1.05rem;background:linear-gradient(180deg,rgba(15,31,50,.94),rgba(8,18,31,.96));}
+        .metriclabel{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;font-weight:800;color:#7f98b3}.metricvalue{font-size:1.95rem;font-weight:900;margin-top:.42rem;color:#ffffff}.metricsub{font-size:.74rem;line-height:1.4;color:#8298b0;margin-top:.43rem}
         .metriccard.risk{border-color:rgba(255,124,135,.30)}.metriccard.good{border-color:rgba(78,210,143,.30)}.metriccard.watch{border-color:rgba(240,199,107,.28)}
-        .signal{border:1px solid var(--line);border-radius:19px;padding:1.05rem;background:linear-gradient(180deg,rgba(18,31,27,.94),rgba(10,18,15,.95));min-height:218px;margin-bottom:.75rem}.signal.critical{border-color:rgba(255,124,135,.35)}.signal.watch{border-color:rgba(240,199,107,.30)}.signal.opportunity{border-color:rgba(131,184,255,.30)}.signal.advantage{border-color:rgba(78,210,143,.30)}
-        .sighead{display:flex;justify-content:space-between;gap:.7rem;align-items:center}.badge{font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;font-weight:850;border-radius:999px;padding:.27rem .54rem;background:rgba(255,255,255,.055);color:#d4dfda}.score{font-size:.7rem;color:#71887d}.sigtitle{font-size:1.13rem;font-weight:850;margin:.7rem 0 .42rem}.sigvalue{font-size:.86rem;color:#9ce6be;font-weight:720}.sigwhy{font-size:.8rem;color:#91a79d;line-height:1.5;margin-top:.55rem}
-        .gapcard{border-radius:18px;padding:1rem;border:1px solid var(--line);background:rgba(14,26,22,.82);min-height:155px}.gapname{font-size:.69rem;text-transform:uppercase;letter-spacing:.1em;color:#788f84;font-weight:800}.gapvalue{font-size:1.75rem;font-weight:900;margin:.42rem 0}.gapcopy{font-size:.76rem;line-height:1.42;color:#8da198}
-        .position-card{border:1px solid rgba(197,166,255,.20);background:linear-gradient(140deg,rgba(48,37,68,.30),rgba(14,25,21,.72));border-radius:22px;padding:1.2rem 1.25rem}.position-name{font-size:1.65rem;font-weight:900}.position-copy{color:#a8b6b0;margin-top:.35rem;line-height:1.5}
+        .signal{border:1px solid var(--line);border-radius:19px;padding:1.05rem;background:linear-gradient(180deg,rgba(14,28,45,.96),rgba(7,16,28,.97));min-height:218px;margin-bottom:.75rem}.signal.critical{border-color:rgba(255,124,135,.35)}.signal.watch{border-color:rgba(240,199,107,.30)}.signal.opportunity{border-color:rgba(131,184,255,.30)}.signal.advantage{border-color:rgba(78,210,143,.30)}
+        .sighead{display:flex;justify-content:space-between;gap:.7rem;align-items:center}.badge{font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;font-weight:850;border-radius:999px;padding:.27rem .54rem;background:rgba(255,255,255,.055);color:#d4dfda}.score{font-size:.7rem;color:#71887d}.sigtitle{font-size:1.13rem;font-weight:850;margin:.7rem 0 .42rem}.sigvalue{font-size:.86rem;color:#74ddff;font-weight:720}.sigwhy{font-size:.8rem;color:#94a9c0;line-height:1.5;margin-top:.55rem}
+        .gapcard{border-radius:18px;padding:1rem;border:1px solid var(--line);background:rgba(13,27,44,.88);min-height:155px}.gapname{font-size:.69rem;text-transform:uppercase;letter-spacing:.1em;color:#8098b2;font-weight:800}.gapvalue{font-size:1.75rem;font-weight:900;margin:.42rem 0}.gapcopy{font-size:.76rem;line-height:1.42;color:#91a6bd}
+        .position-card{border:1px solid rgba(197,166,255,.20);background:linear-gradient(140deg,rgba(47,54,92,.34),rgba(10,24,40,.82));border-radius:22px;padding:1.2rem 1.25rem}.position-name{font-size:1.65rem;font-weight:900}.position-copy{color:#a8b8ca;margin-top:.35rem;line-height:1.5}
         .tag{display:inline-block;border-radius:999px;padding:.35rem .62rem;margin:.2rem .18rem .2rem 0;font-size:.72rem;background:rgba(131,184,255,.08);border:1px solid rgba(131,184,255,.16);color:#bcd4f8}
         div[data-baseweb="tab-list"]{gap:.3rem;background:rgba(11,20,17,.8);border:1px solid rgba(255,255,255,.055);padding:.32rem;border-radius:15px}button[data-baseweb="tab"]{border-radius:10px;padding-left:1rem;padding-right:1rem}
         [data-testid="stForm"]{background:rgba(12,23,19,.78);border:1px solid var(--line);border-radius:18px;padding:.9rem 1rem .25rem}
@@ -152,7 +152,7 @@ def market_map_figure(restaurant, target, competitors):
         hover_data={"Reviews": True, "Role": False},
         text="Restaurant",
         size_max=42,
-        color_discrete_map={"Target": "#8ef0ba", "Competitor": "#5f7d70"},
+        color_discrete_map={"Target": "#55d7ff", "Competitor": "#657d98"},
     )
     fig.update_traces(textposition="top center", textfont_size=11)
     fig.update_layout(
@@ -160,7 +160,7 @@ def market_map_figure(restaurant, target, competitors):
         margin=dict(l=10,r=10,t=30,b=10),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(8,16,13,.35)",
-        font=dict(color="#dce8e2"),
+        font=dict(color="#dbe8f5"),
         legend=dict(orientation="h", y=1.08, x=0),
         xaxis=dict(gridcolor="rgba(255,255,255,.06)", title="Public cost for two"),
         yaxis=dict(gridcolor="rgba(255,255,255,.06)", title="Public rating", range=[3,5]),
@@ -210,6 +210,12 @@ restaurant=report["restaurant"];location=report["location"];target=report["bench
 cm=report["competitive_metrics"];gaps=report["gap_metrics"];market=report["market_position"];signals=report["signals"]
 source_summaries=report["source_summaries"];customer=report["customer_voice"];content=report["content_summary"];discovery=report["discovery"]
 
+# Presentation-grade evidence coverage: count only actually observed public fields.
+core_fields = [target.get("rating"), target.get("review_count"), target.get("cost_for_two"), target.get("discount_percent")]
+observed_core = sum(v is not None for v in core_fields)
+active_sources = sum(1 for v in source_summaries.values() if v and any(v.get(k) is not None for k in ["rating","review_count","cost_for_two","discount_percent"]))
+coverage_pct = round((observed_core / 4) * 70 + min(active_sources, 3) / 3 * 30)
+
 head1,head2=st.columns([4,1])
 with head1:
     st.markdown(f"## {restaurant}")
@@ -223,7 +229,7 @@ cols=st.columns(5)
 with cols[0]: metric_card("Market position",market.get("quadrant","—"),f"{market.get('price_delta_pct',0):+.0f}% price · {market.get('rating_gap',0):+.1f} rating" if market.get("price_delta_pct") is not None else "insufficient public data")
 with cols[1]: metric_card("Price index",f"{cm.get('price_index'):.2f}x" if cm.get("price_index") is not None else "—","vs cohort","watch" if cm.get("price_index") and cm.get("price_index")>1.1 else "")
 with cols[2]: metric_card("Rating gap",f"{cm.get('rating_gap'):+.1f}" if cm.get("rating_gap") is not None else "—","vs cohort","risk" if cm.get("rating_gap") is not None and cm.get("rating_gap")<0 else "good")
-with cols[3]: metric_card("Demand-capture gap",f"{gaps.get('demand_capture_gap'):+.0f} pts" if gaps.get("demand_capture_gap") is not None else "—","reputation vs discovery","watch" if gaps.get("demand_capture_gap") is not None and abs(gaps.get("demand_capture_gap"))>=20 else "")
+with cols[3]: metric_card("Evidence coverage",f"{coverage_pct}%","verified public fields","good" if coverage_pct>=75 else "watch")
 with cols[4]: metric_card("Platform fragmentation",f"{gaps.get('platform_fragmentation_index'):.0f}/100" if gaps.get("platform_fragmentation_index") is not None else "—","cross-platform variance","risk" if gaps.get("platform_fragmentation_index") is not None and gaps.get("platform_fragmentation_index")>=55 else "")
 
 st.write("")
@@ -273,9 +279,9 @@ with tabs[2]:
     if topics:
         df=pd.DataFrame([{"Topic":x["topic"],"Mentions":x["mentions"],"Positive":x["positive"],"Negative":x["negative"],"Net sentiment":x["net_sentiment"]} for x in topics])
         fig=go.Figure()
-        fig.add_bar(y=df["Topic"],x=df["Positive"],name="Positive",orientation="h",marker_color="#55cf91")
-        fig.add_bar(y=df["Topic"],x=-df["Negative"],name="Negative",orientation="h",marker_color="#e87981")
-        fig.update_layout(barmode="relative",height=430,paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="#dce8e2"),margin=dict(l=10,r=10,t=20,b=10),xaxis=dict(gridcolor="rgba(255,255,255,.06)"),legend=dict(orientation="h"))
+        fig.add_bar(y=df["Topic"],x=df["Positive"],name="Positive",orientation="h",marker_color="#48cfa0")
+        fig.add_bar(y=df["Topic"],x=-df["Negative"],name="Negative",orientation="h",marker_color="#ff7d73")
+        fig.update_layout(barmode="relative",height=430,paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="#dbe8f5"),margin=dict(l=10,r=10,t=20,b=10),xaxis=dict(gridcolor="rgba(255,255,255,.06)"),legend=dict(orientation="h"))
         st.plotly_chart(fig,use_container_width=True,config={"displayModeBar":False})
         st.dataframe(df,use_container_width=True,hide_index=True)
     else: st.info("The current public sample is too thin for a customer-theme view.")
