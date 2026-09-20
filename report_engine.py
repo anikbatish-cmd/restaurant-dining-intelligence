@@ -31,7 +31,7 @@ from metrics import (
     external_health_score,
 )
 from radar import build_conversation_starters, build_signal_radar
-from search_engine import collect_public_intelligence, resolve_restaurant
+from search_engine import collect_public_intelligence, resolve_restaurant, similarity
 from strategy_layer import (
     build_executive_story,
     build_gap_metrics,
@@ -63,16 +63,59 @@ def build_report(restaurant, location):
     data = resolve_restaurant(restaurant, location)
     debug_data = data.get("debug", {})
 
-    all_dining_candidates = (
-        debug_data.get("district_candidates", [])
-        + debug_data.get("dineout_candidates", [])
-        + debug_data.get("metric_candidates", [])
+    # Only allow evidence that resolves back to the target restaurant.
+    # Previously every search candidate was parsed into the restaurant summary;
+    # that could leak metrics from nearby restaurants into the target.
+    candidate_pool = (
+        debug_data.get("metric_candidates", [])
         + data.get("general_results", [])
     )
 
+    selected = []
+    seen_urls = set()
+
+    def add_result(result):
+        if not result or not result.get("url") or result["url"] in seen_urls:
+            return
+        seen_urls.add(result["url"])
+        selected.append(result)
+
+    add_result(data.get("district"))
+    add_result(data.get("dineout"))
+
+    # Supporting platforms are accepted only when the result title strongly
+    # matches the requested restaurant. This is intentionally conservative:
+    # missing data is better than a confidently wrong metric.
+    for domain in ["eazydiner.com", "justdial.com"]:
+        matches = []
+        for result in candidate_pool:
+            if domain not in (result.get("url") or "").lower():
+                continue
+            score = similarity(restaurant, result.get("title", ""))
+            if score >= 0.52:
+                matches.append((score, result))
+        if matches:
+            matches.sort(key=lambda x: x[0], reverse=True)
+            add_result(matches[0][1])
+
+    # Keep at most one generic-web result, and only at high name similarity.
+    web_matches = []
+    excluded = ["district.in", "swiggy.com", "eazydiner.com", "justdial.com",
+                "instagram.com", "facebook.com", "zomato.com"]
+    for result in candidate_pool:
+        url = (result.get("url") or "").lower()
+        if any(domain in url for domain in excluded):
+            continue
+        score = similarity(restaurant, result.get("title", ""))
+        if score >= 0.68:
+            web_matches.append((score, result))
+    if web_matches:
+        web_matches.sort(key=lambda x: x[0], reverse=True)
+        add_result(web_matches[0][1])
+
     dining_metrics = extract_dining_metrics(
-        primary_result=data.get("district"),
-        supporting_results=all_dining_candidates,
+        primary_result=None,
+        supporting_results=selected,
     )
 
     direct_urls = []
