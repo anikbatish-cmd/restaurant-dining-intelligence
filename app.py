@@ -53,9 +53,9 @@ st.markdown(
         .brandname{display:flex;align-items:center;gap:.65rem;font-weight:850;font-size:1.03rem;}
         .brandmark{width:31px;height:31px;border-radius:9px;background:linear-gradient(145deg,#a4f7c9,#3aa777);box-shadow:0 0 28px rgba(88,215,151,.22)}
         .micro{font-size:.69rem;text-transform:uppercase;letter-spacing:.14em;font-weight:800;color:#70887d}
-        .hero{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:28px;padding:2.15rem 2.3rem;background:linear-gradient(125deg,rgba(19,43,34,.98),rgba(9,17,14,.95));box-shadow:0 26px 80px rgba(0,0,0,.26);margin-bottom:1rem;}
+        .hero{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:28px;padding:1.45rem 1.65rem;background:linear-gradient(125deg,rgba(19,43,34,.98),rgba(9,17,14,.95));box-shadow:0 26px 80px rgba(0,0,0,.26);margin-bottom:1rem;}
         .hero:before{content:"";position:absolute;width:410px;height:410px;border-radius:50%;right:-145px;top:-215px;background:radial-gradient(circle,rgba(135,240,184,.23),transparent 68%)}
-        .hero h1{font-size:clamp(2.3rem,5vw,4.7rem);line-height:.94;max-width:900px;margin:.45rem 0 .8rem;font-weight:900;}
+        .hero h1{font-size:clamp(2rem,4vw,3.4rem);line-height:.94;max-width:900px;margin:.45rem 0 .8rem;font-weight:900;}
         .hero-copy{max-width:820px;color:#a6b9b0;font-size:1.02rem;line-height:1.6}
         .pillrow{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.2rem}.pill{border:1px solid rgba(143,240,189,.16);background:rgba(143,240,189,.06);padding:.4rem .7rem;border-radius:999px;font-size:.75rem;color:#cae8d8}
         .story{border:1px solid rgba(143,240,189,.18);background:linear-gradient(135deg,rgba(27,52,42,.72),rgba(12,23,19,.74));border-radius:22px;padding:1.15rem 1.25rem;margin:.8rem 0 1.1rem;}
@@ -174,7 +174,7 @@ def market_map_figure(restaurant, target, competitors):
 
 st.markdown('<div class="brandbar"><div class="brandname"><span class="brandmark"></span>Dining Intelligence</div><div class="micro">Restaurant market intelligence OS · dine-in only</div></div>', unsafe_allow_html=True)
 st.markdown(
-    '''<div class="hero"><div class="micro">The outside-in view of a restaurant</div><h1>See what the owner cannot see from inside the restaurant.</h1><div class="hero-copy">Pricing power, reputation, competitive position, public friction, platform contradictions, search visibility, creator signals and positioning white space — condensed into the few patterns worth talking about.</div><div class="pillrow"><span class="pill">50% price-led cohorting</span><span class="pill">Market-position map</span><span class="pill">Demand-capture gap</span><span class="pill">Platform fragmentation</span><span class="pill">Customer advocacy vs friction</span><span class="pill">Auditable evidence</span></div></div>''',
+    '''<div class="hero"><div class="micro">Dining Intelligence</div><h1>Restaurant market scan.</h1><div class="hero-copy">Competitive position · customer signals · discovery · platform truth</div></div>''',
     unsafe_allow_html=True,
 )
 
@@ -218,18 +218,13 @@ with head2:
     if st.button("↻ Refresh",use_container_width=True):
         build_report.clear();st.session_state["report"]=build_report(restaurant,location);st.rerun()
 
-# Executive story
-if report.get("executive_story"):
-    lines="".join(f'<div class="story-line">{esc(line)}</div>' for line in report["executive_story"])
-    st.markdown(f'<div class="story"><div class="micro">Executive story</div>{lines}</div>',unsafe_allow_html=True)
-
 # Headline metrics
 cols=st.columns(5)
 with cols[0]: metric_card("Market position",market.get("quadrant","—"),f"{market.get('price_delta_pct',0):+.0f}% price · {market.get('rating_gap',0):+.1f} rating" if market.get("price_delta_pct") is not None else "insufficient public data")
-with cols[1]: metric_card("Price index",f"{cm.get('price_index'):.2f}x" if cm.get("price_index") is not None else "—","target cost for two ÷ cohort median","watch" if cm.get("price_index") and cm.get("price_index")>1.1 else "")
-with cols[2]: metric_card("Rating gap",f"{cm.get('rating_gap'):+.1f}" if cm.get("rating_gap") is not None else "—","target rating − cohort median","risk" if cm.get("rating_gap") is not None and cm.get("rating_gap")<0 else "good")
-with cols[3]: metric_card("Demand-capture gap",f"{gaps.get('demand_capture_gap'):+.0f} pts" if gaps.get("demand_capture_gap") is not None else "—","reputation percentile − discovery share","watch" if gaps.get("demand_capture_gap") is not None and abs(gaps.get("demand_capture_gap"))>=20 else "")
-with cols[4]: metric_card("Platform fragmentation",f"{gaps.get('platform_fragmentation_index'):.0f}/100" if gaps.get("platform_fragmentation_index") is not None else "—","rating + price + offer inconsistency","risk" if gaps.get("platform_fragmentation_index") is not None and gaps.get("platform_fragmentation_index")>=55 else "")
+with cols[1]: metric_card("Price index",f"{cm.get('price_index'):.2f}x" if cm.get("price_index") is not None else "—","vs cohort","watch" if cm.get("price_index") and cm.get("price_index")>1.1 else "")
+with cols[2]: metric_card("Rating gap",f"{cm.get('rating_gap'):+.1f}" if cm.get("rating_gap") is not None else "—","vs cohort","risk" if cm.get("rating_gap") is not None and cm.get("rating_gap")<0 else "good")
+with cols[3]: metric_card("Demand-capture gap",f"{gaps.get('demand_capture_gap'):+.0f} pts" if gaps.get("demand_capture_gap") is not None else "—","reputation vs discovery","watch" if gaps.get("demand_capture_gap") is not None and abs(gaps.get("demand_capture_gap"))>=20 else "")
+with cols[4]: metric_card("Platform fragmentation",f"{gaps.get('platform_fragmentation_index'):.0f}/100" if gaps.get("platform_fragmentation_index") is not None else "—","cross-platform variance","risk" if gaps.get("platform_fragmentation_index") is not None and gaps.get("platform_fragmentation_index")>=55 else "")
 
 st.write("")
 tabs=st.tabs(["◉ Command Center","⌁ Market Map","△ Customer Reality","◎ Attention & Discovery","⇄ Platform Truth","⌘ Data Lab"])
@@ -240,17 +235,6 @@ with tabs[0]:
         row=st.columns(3)
         for col,s in zip(row,signals[start:start+3]):
             with col: signal_card(s)
-    st.markdown("### Strategic gaps")
-    gapcols=st.columns(4)
-    with gapcols[0]: gap_card("Demand capture",f"{gaps.get('demand_capture_gap'):+.0f} pts" if gaps.get("demand_capture_gap") is not None else "—","Positive means reputation is stronger than generic discovery visibility.")
-    with gapcols[1]: gap_card("Advocacy conversion",f"{gaps.get('advocacy_conversion_gap'):+.0f} pts" if gaps.get("advocacy_conversion_gap") is not None else "—","Positive means public interaction volume outruns relative reputation.")
-    with gapcols[2]: gap_card("Promotion pressure",f"{gaps.get('promotion_pressure_pp'):+.0f} pp" if gaps.get("promotion_pressure_pp") is not None else "—","Visible offer intensity versus the competitor median.")
-    with gapcols[3]: gap_card("Creator lift",f"{gaps.get('creator_lift'):.2f}x" if gaps.get("creator_lift") is not None else "—","Median visible creator engagement divided by owned-content engagement.")
-    if report.get("conversation_starters"):
-        st.markdown("### Conversation ammo")
-        qcols=st.columns(2)
-        for i,q in enumerate(report["conversation_starters"]):
-            with qcols[i%2]: st.markdown(f"**{i+1:02d}.** {q}")
 
 with tabs[1]:
     left,right=st.columns([1.45,.55])
@@ -318,7 +302,7 @@ with tabs[3]:
         st.markdown("### Generic discovery matrix")
         rows=[{"Search occasion":x.get("query"),restaurant:"Surfaced" if x.get("target_found") else "Absent","Competitors surfaced":", ".join(x.get("competitors_found",[])) or "—"} for x in discovery.get("queries",[])]
         if rows: st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
-        st.caption(discovery.get("methodology",""))
+
     with st.expander("Content / creator evidence"):
         for item in report["content_items"][:20]:
             st.markdown(f"**{item.get('type')} · {item.get('theme')}**");st.write(item.get("snippet",""));
@@ -329,14 +313,13 @@ with tabs[4]:
     st.markdown("### Where platforms disagree")
     tensions=report["platform_tensions"]
     if tensions:
-        for t in tensions: st.warning(f"**{t.get('title')}** — {t.get('signal')}\n\n{t.get('question')}")
+        with st.expander("Platform differences", expanded=False):
+            for t in tensions:
+                st.markdown(f"**{t.get('title')}** · {t.get('signal')}")
     comparison=pd.DataFrame(report["platform_comparison"])
     if not comparison.empty:
         columns=["Platform","Role","Rating","Δ rating vs District","Ratings / Reviews","Cost for Two","Δ price vs District %","Top Offer %","Confidence","Method"]
         st.dataframe(comparison[[c for c in columns if c in comparison.columns]],use_container_width=True,hide_index=True)
-    rolecols=st.columns(5)
-    for col,source in zip(rolecols,["District","Swiggy Dineout","EazyDiner","Justdial","Web"]):
-        with col: gap_card(source,PLATFORM_ROLES[source],PLATFORM_NOTES[source])
 
 with tabs[5]:
     st.markdown("### Metric logic explorer")
