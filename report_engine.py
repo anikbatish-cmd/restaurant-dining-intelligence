@@ -144,12 +144,46 @@ def build_report(restaurant, location):
     }
 
     district_summary = source_summaries.get("District")
-    benchmark_target = (
-        district_summary
-        or source_summaries.get("Swiggy Dineout")
-        or source_summaries.get("Web")
-        or {}
+
+    # Build a field-level consensus profile instead of taking one source wholesale.
+    # District remains preferred, but missing fields are filled from validated sources.
+    # This prevents "insufficient data" when a source exposes only part of the profile.
+    source_priority = [
+        "District", "Swiggy Dineout", "EazyDiner", "Justdial",
+        "Tripadvisor", "Magicpin", "Web",
+    ]
+    benchmark_target = {}
+    field_provenance = {}
+    scalar_fields = ["rating", "review_count", "cost_for_two", "discount_percent"]
+    list_fields = ["offers", "cuisines", "positioning_tags"]
+
+    for field in scalar_fields:
+        for source in source_priority:
+            summary = source_summaries.get(source) or {}
+            if summary.get(field) is not None:
+                benchmark_target[field] = summary.get(field)
+                field_provenance[field] = source
+                break
+
+    for field in list_fields:
+        values = []
+        used_sources = []
+        for source in source_priority:
+            summary = source_summaries.get(source) or {}
+            for value in summary.get(field, []) or []:
+                if value not in values:
+                    values.append(value)
+                    used_sources.append(source)
+        benchmark_target[field] = values
+        if used_sources:
+            field_provenance[field] = ", ".join(dict.fromkeys(used_sources))
+
+    benchmark_target["confidence"] = (
+        "High" if sum(benchmark_target.get(f) is not None for f in scalar_fields) >= 3
+        else "Medium"
     )
+    benchmark_target["method"] = "validated_multi_source_consensus"
+    benchmark_target["field_provenance"] = field_provenance
 
     instagram_metrics = extract_instagram_metrics(data.get("instagram"))
     instagram_snapshots = extract_instagram_snapshots(
