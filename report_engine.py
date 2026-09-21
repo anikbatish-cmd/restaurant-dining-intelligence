@@ -10,6 +10,7 @@ from collectors import (
     extract_instagram_snapshots,
     summarize_content_items,
     summarize_source_results,
+    merge_observed_metrics,
 )
 from competitors import discover_competitors
 from data_lab import (
@@ -184,6 +185,19 @@ def build_report(restaurant, location):
     )
     benchmark_target["method"] = "validated_multi_source_consensus"
     benchmark_target["field_provenance"] = field_provenance
+
+    # Last-resort coverage layer: use only validated target candidates already
+    # collected above, but fuse fields across their snippets. This avoids a
+    # blank presentation when direct pages block scraping or omit structured data.
+    fallback_profile = merge_observed_metrics(selected)
+    for field in scalar_fields:
+        if benchmark_target.get(field) is None and fallback_profile.get(field) is not None:
+            benchmark_target[field] = fallback_profile[field]
+            benchmark_target["field_provenance"][field] = fallback_profile.get("field_provenance", {}).get(field, "validated search evidence")
+    for field in list_fields:
+        if not benchmark_target.get(field):
+            benchmark_target[field] = fallback_profile.get(field, [])
+
 
     instagram_metrics = extract_instagram_metrics(data.get("instagram"))
     instagram_snapshots = extract_instagram_snapshots(
