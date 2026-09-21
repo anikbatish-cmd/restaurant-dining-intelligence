@@ -8,6 +8,7 @@ import streamlit as st
 from data_lab import PLATFORM_NOTES, PLATFORM_ROLES
 from report_engine import build_report
 from trends import load_monthly_history, save_monthly_snapshot, latest_changes, persistence_ready
+from cache_utils import clear_runtime_caches
 
 
 st.set_page_config(
@@ -223,15 +224,18 @@ with head1:
     st.caption(f"{location} · {len(competitors)}-restaurant cohort · District primary when available")
 with head2:
     if st.button("↻ Refresh",use_container_width=True):
-        build_report.clear();st.session_state["report"]=build_report(restaurant,location);st.rerun()
+        clear_runtime_caches()
+        build_report.clear()
+        st.session_state["report"]=build_report(restaurant,location)
+        st.rerun()
 
 # Headline metrics
 cols=st.columns(5)
 with cols[0]: metric_card("Market position",market.get("quadrant","—"),f"{market.get('price_delta_pct',0):+.0f}% price · {market.get('rating_gap',0):+.1f} rating" if market.get("price_delta_pct") is not None else "insufficient public data")
-with cols[1]: metric_card("Price index",f"{cm.get('price_index'):.2f}x" if cm.get("price_index") is not None else "—","vs cohort","watch" if cm.get("price_index") and cm.get("price_index")>1.1 else "")
+with cols[1]: metric_card("Price index",f"{cm.get('price_index'):.2f}x" if cm.get("price_index") is not None else "Not observed","vs cohort","watch" if cm.get("price_index") and cm.get("price_index")>1.1 else "")
 with cols[2]: metric_card("Rating gap",f"{cm.get('rating_gap'):+.1f}" if cm.get("rating_gap") is not None else "—","vs cohort","risk" if cm.get("rating_gap") is not None and cm.get("rating_gap")<0 else "good")
 with cols[3]: metric_card("Evidence coverage",f"{coverage_pct}%","verified public fields","good" if coverage_pct>=75 else "watch")
-with cols[4]: metric_card("Platform fragmentation",f"{gaps.get('platform_fragmentation_index'):.0f}/100" if gaps.get("platform_fragmentation_index") is not None else "—","cross-platform variance","risk" if gaps.get("platform_fragmentation_index") is not None and gaps.get("platform_fragmentation_index")>=55 else "")
+with cols[4]: metric_card("Platform fragmentation",f"{gaps.get('platform_fragmentation_index'):.0f}/100" if gaps.get("platform_fragmentation_index") is not None else "Stable / limited","cross-platform variance","risk" if gaps.get("platform_fragmentation_index") is not None and gaps.get("platform_fragmentation_index")>=55 else "")
 
 st.write("")
 tabs=st.tabs(["◉ Command Center","↗ Monthly Pulse","⌁ Market Map","△ Customer Reality","◎ Attention & Discovery","⇄ Platform Truth","⌘ Data Lab"])
