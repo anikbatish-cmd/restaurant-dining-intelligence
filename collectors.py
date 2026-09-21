@@ -203,6 +203,34 @@ def parse_result(result):
     }
 
 
+def merge_observed_metrics(results):
+    """Build a best-effort target profile from already validated search evidence."""
+    parsed = [parse_result(r) for r in (results or []) if r and r.get("url")]
+    profile = {
+        "rating": None, "review_count": None, "cost_for_two": None,
+        "offers": [], "discount_percent": None, "cuisines": [],
+        "positioning_tags": [], "confidence": "Medium",
+        "method": "validated_search_evidence", "field_provenance": {},
+    }
+    priority = {"District": 7, "Swiggy Dineout": 6, "EazyDiner": 5, "Justdial": 4,
+                "Tripadvisor": 3, "Magicpin": 2, "Web": 1}
+    parsed.sort(key=lambda x: priority.get(x.get("source"), 0), reverse=True)
+    for item in parsed:
+        src = item.get("source")
+        for field in ["rating", "review_count", "cost_for_two"]:
+            if profile[field] is None and item.get(field) is not None:
+                profile[field] = item[field]
+                profile["field_provenance"][field] = src
+        for field in ["offers", "cuisines", "positioning_tags"]:
+            for value in item.get(field, []) or []:
+                if value not in profile[field]:
+                    profile[field].append(value)
+    profile["discount_percent"] = extract_discount_percent(profile["offers"])
+    if profile["discount_percent"] is not None:
+        profile["field_provenance"]["discount_percent"] = "public offer evidence"
+    return profile
+
+
 def extract_dining_metrics(primary_result=None, supporting_results=None):
     supporting_results = supporting_results or []
     results = []
