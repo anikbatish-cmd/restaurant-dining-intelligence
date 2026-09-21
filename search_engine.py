@@ -312,6 +312,9 @@ def resolve_restaurant(restaurant, location):
             f'"{restaurant}" "{location}" cost for two offer',
             f'"{restaurant}" "{location}" rating reviews price',
             f'"{restaurant}" "{location}" cuisine date night rooftop',
+            f'"{restaurant}" "{location}" "ratings" "for two"',
+            f'"{restaurant}" "{location}" "reviews" "₹"',
+            f'"{restaurant}" "{location}" menu price ambience',
         ],
         "dineout": [
             f"{restaurant} {location} Swiggy Dineout",
@@ -339,7 +342,7 @@ def resolve_restaurant(restaurant, location):
         max_results_by_group={
             "general": 8,
             "district": 7,
-            "metric": 7,
+            "metric": 10,
             "dineout": 6,
             "instagram": 8,
             "supporting": 6,
