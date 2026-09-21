@@ -7,6 +7,7 @@ import streamlit as st
 
 from data_lab import PLATFORM_NOTES, PLATFORM_ROLES
 from report_engine import build_report
+from trends import load_monthly_history, save_monthly_snapshot, latest_changes, persistence_ready
 
 
 st.set_page_config(
@@ -233,7 +234,7 @@ with cols[3]: metric_card("Evidence coverage",f"{coverage_pct}%","verified publi
 with cols[4]: metric_card("Platform fragmentation",f"{gaps.get('platform_fragmentation_index'):.0f}/100" if gaps.get("platform_fragmentation_index") is not None else "—","cross-platform variance","risk" if gaps.get("platform_fragmentation_index") is not None and gaps.get("platform_fragmentation_index")>=55 else "")
 
 st.write("")
-tabs=st.tabs(["◉ Command Center","⌁ Market Map","△ Customer Reality","◎ Attention & Discovery","⇄ Platform Truth","⌘ Data Lab"])
+tabs=st.tabs(["◉ Command Center","↗ Monthly Pulse","⌁ Market Map","△ Customer Reality","◎ Attention & Discovery","⇄ Platform Truth","⌘ Data Lab"])
 
 with tabs[0]:
     st.markdown("### The signals worth discussing")
@@ -243,6 +244,44 @@ with tabs[0]:
             with col: signal_card(s)
 
 with tabs[1]:
+    st.markdown("### Monthly Pulse")
+    st.caption("What changed since the last monthly snapshot — the recurring layer for owner reviews.")
+    history = load_monthly_history(restaurant, location)
+    if persistence_ready():
+        save_monthly_snapshot(report)
+        history = load_monthly_history(restaurant, location)
+    if len(history) >= 2:
+        changes = latest_changes(history)
+        mc = st.columns(5)
+        latest = history[-1]
+        with mc[0]: metric_card("Rating", f"{latest.get('rating'):.1f}" if latest.get('rating') is not None else "—", f"{changes.get('rating'):+.1f} MoM" if changes.get('rating') is not None else "no comparable change")
+        with mc[1]: metric_card("Public reviews", number(latest.get("review_count")), f"{changes.get('review_count'):+,.0f} MoM" if changes.get('review_count') is not None else "no comparable change")
+        with mc[2]: metric_card("Instagram", number(latest.get("instagram_followers")), f"{changes.get('instagram_followers'):+,.0f} followers" if changes.get('instagram_followers') is not None else "no comparable change")
+        with mc[3]: metric_card("Discovery", f"{latest.get('discovery_share'):.0%}" if latest.get('discovery_share') is not None else "—", f"{changes.get('discovery_share'):+.1%} MoM" if changes.get('discovery_share') is not None else "no comparable change")
+        with mc[4]: metric_card("Offer", f"{latest.get('discount_percent'):.0f}%" if latest.get('discount_percent') is not None else "—", f"{changes.get('discount_percent'):+.0f} pp MoM" if changes.get('discount_percent') is not None else "no comparable change")
+
+        trend_df = pd.DataFrame(history)
+        left_t, right_t = st.columns(2)
+        with left_t:
+            if trend_df["review_count"].notna().sum() >= 2:
+                fig = px.line(trend_df, x="month", y="review_count", markers=True, title="Public review growth")
+                fig.update_layout(height=330, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#dbe8f5"), margin=dict(l=10,r=10,t=45,b=10))
+                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar":False})
+        with right_t:
+            if trend_df["instagram_followers"].notna().sum() >= 2:
+                fig = px.line(trend_df, x="month", y="instagram_followers", markers=True, title="Instagram audience")
+                fig.update_layout(height=330, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#dbe8f5"), margin=dict(l=10,r=10,t=45,b=10))
+                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar":False})
+
+        st.markdown("#### Month-over-month scorecard")
+        show_cols = ["month","rating","review_count","cost_for_two","discount_percent","rating_gap","instagram_followers","discovery_share","top_strength","top_concern"]
+        st.dataframe(trend_df[[x for x in show_cols if x in trend_df.columns]], use_container_width=True, hide_index=True)
+    elif persistence_ready():
+        st.info("Baseline captured. From the next monthly snapshot, this page will show movement instead of a static profile.")
+    else:
+        st.info("Monthly tracking is built, but persistent storage is not connected yet. Add the two Supabase secrets to start accumulating merchant history.")
+
+with tabs[2]:
     left,right=st.columns([1.45,.55])
     with left:
         st.markdown("### Price × reputation battlefield")
@@ -273,7 +312,7 @@ with tabs[1]:
         for item in competitors:
             p=item.get("match_components",{});st.write(f"**{item.get('name')}** · Price {p.get('price_similarity',0):.0%} · Cuisine {p.get('cuisine_similarity',0):.0%} · Positioning {p.get('positioning_similarity',0):.0%} · Location {p.get('location_score',0):.0%}")
 
-with tabs[2]:
+with tabs[3]:
     st.markdown("### What customers reward vs punish")
     topics=customer.get("topics",[])
     if topics:
@@ -291,7 +330,7 @@ with tabs[2]:
             if item.get("url"): st.markdown(item["url"])
             st.divider()
 
-with tabs[3]:
+with tabs[4]:
     m1,m2,m3,m4=st.columns(4)
     ig=report["instagram_metrics"]
     with m1: metric_card("Instagram audience",number(ig.get("followers")),"canonical indexed profile")
@@ -315,7 +354,7 @@ with tabs[3]:
             if item.get("url"): st.markdown(item["url"])
             st.divider()
 
-with tabs[4]:
+with tabs[5]:
     st.markdown("### Where platforms disagree")
     tensions=report["platform_tensions"]
     if tensions:
@@ -327,7 +366,7 @@ with tabs[4]:
         columns=["Platform","Role","Rating","Δ rating vs District","Ratings / Reviews","Cost for Two","Δ price vs District %","Top Offer %","Confidence","Method"]
         st.dataframe(comparison[[c for c in columns if c in comparison.columns]],use_container_width=True,hide_index=True)
 
-with tabs[5]:
+with tabs[6]:
     st.markdown("### Metric logic explorer")
     dictionary=report["metric_dictionary"]
     names=[x["Metric"] for x in dictionary]
