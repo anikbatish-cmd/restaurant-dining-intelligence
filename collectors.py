@@ -63,6 +63,8 @@ def get_text(result):
 def extract_rating(text):
     patterns = [
         r"rated\s+([1-5]\.\d)",
+        r"ratings?\s*&\s*reviews?\s*([1-5](?:\.\d)?)",
+        r"\b([1-5]\.\d)\s*(?:\||•|·)\s*₹",
         r"\b([1-5]\.\d)\s+(?:rating|ratings|reviews)",
         r"(?:rating|ratingValue)[\"'\s:=]+([1-5](?:\.\d)?)",
     ]
@@ -80,6 +82,7 @@ def extract_rating(text):
 
 def extract_review_count(text):
     patterns = [
+        r"based on\s+([\d,]+)\s+(?:customer\s+)?ratings",
         r"based on\s+([\d,]+)\s+(?:customer\s+)?reviews",
         r"([\d,]+)\s+(?:dining\s+)?ratings",
         r"([\d,]+)\s+reviews",
