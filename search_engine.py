@@ -13,34 +13,53 @@ LOW_VALUE_INSTAGRAM_DOMAINS = [
     "inflact.com",
     "igtrackers.com",
 ]
-MAX_SEARCH_WORKERS = 6
+MAX_SEARCH_WORKERS = 3
 
 
 @lru_cache(maxsize=512)
 def search_web(query, max_results=10):
-    """Free public-web search with process-level caching."""
-    try:
-        results = DDGS().text(
-            query,
-            region="in-en",
-            safesearch="moderate",
-            max_results=max_results,
-        )
+    """Resilient public-web search.
 
-        output = []
-        for result in results or []:
-            output.append(
-                {
-                    "title": result.get("title", ""),
-                    "url": result.get("href", ""),
-                    "snippet": result.get("body", ""),
-                }
+    DDGS auto mode can lose otherwise successful results when one provider
+    fails. Query single providers sequentially instead, so a blocked/rate-
+    limited backend cannot blank the complete restaurant scan.
+    """
+    backend_errors = []
+    backends = ("bing", "brave", "duckduckgo", "google")
+
+    for backend in backends:
+        try:
+            results = DDGS(timeout=8).text(
+                query,
+                region="in-en",
+                safesearch="moderate",
+                max_results=max_results,
+                backend=backend,
             )
+            output = []
+            for result in results or []:
+                url = result.get("href") or result.get("url") or ""
+                if not url:
+                    continue
+                output.append(
+                    {
+                        "title": result.get("title", ""),
+                        "url": url,
+                        "snippet": result.get("body") or result.get("snippet") or "",
+                        "search_backend": backend,
+                    }
+                )
+            if output:
+                return {"results": output, "error": None, "backend": backend}
+            backend_errors.append(f"{backend}: no results")
+        except Exception as exc:
+            backend_errors.append(f"{backend}: {exc}")
 
-        return {"results": output, "error": None}
-
-    except Exception as exc:
-        return {"results": [], "error": str(exc)}
+    return {
+        "results": [],
+        "error": " | ".join(backend_errors) or "No search backend returned results.",
+        "backend": None,
+    }
 
 
 def clear_search_cache():
