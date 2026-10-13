@@ -229,23 +229,52 @@ with head2:
         st.session_state["report"]=build_report(restaurant,location)
         st.rerun()
 
-# Headline metrics
+# Headline metrics: lead with observed restaurant facts, not derived cohort
+# metrics. This keeps the first screen useful even when one competitor/source
+# is temporarily unavailable.
+headline = []
+if target.get("rating") is not None:
+    headline.append(("Public rating", f"{target.get('rating'):.1f}", target.get("field_provenance", {}).get("rating", "validated source"), "good"))
+if target.get("review_count") is not None:
+    headline.append(("Public reviews", number(target.get("review_count")), target.get("field_provenance", {}).get("review_count", "validated source"), ""))
+if target.get("cost_for_two") is not None:
+    headline.append(("Cost for two", f"₹{target.get('cost_for_two'):,.0f}", target.get("field_provenance", {}).get("cost_for_two", "validated source"), ""))
+if target.get("discount_percent") is not None:
+    headline.append(("Top visible offer", f"{target.get('discount_percent'):.0f}%", "public dining offer", "watch"))
+if report.get("instagram_metrics", {}).get("followers") is not None:
+    headline.append(("Instagram audience", number(report["instagram_metrics"].get("followers")), "indexed official profile", ""))
+if target.get("cuisines"):
+    headline.append(("Cuisine anchor", target.get("cuisines")[0], f"{len(target.get('cuisines', []))} cuisines observed", ""))
+if target.get("positioning_tags"):
+    headline.append(("Positioning", target.get("positioning_tags")[0], "public positioning cue", ""))
+headline.append(("Evidence coverage", f"{coverage_pct}%", f"{active_sources} public sources", "good" if coverage_pct>=75 else "watch"))
+headline.append(("Competitive cohort", str(len(competitors)), "validated comparables", ""))
+
 cols=st.columns(5)
-with cols[0]: metric_card("Market position",market.get("quadrant","—"),f"{market.get('price_delta_pct',0):+.0f}% price · {market.get('rating_gap',0):+.1f} rating" if market.get("price_delta_pct") is not None else "insufficient public data")
-with cols[1]: metric_card("Price index",f"{cm.get('price_index'):.2f}x" if cm.get("price_index") is not None else "Not observed","vs cohort","watch" if cm.get("price_index") and cm.get("price_index")>1.1 else "")
-with cols[2]: metric_card("Rating gap",f"{cm.get('rating_gap'):+.1f}" if cm.get("rating_gap") is not None else "—","vs cohort","risk" if cm.get("rating_gap") is not None and cm.get("rating_gap")<0 else "good")
-with cols[3]: metric_card("Evidence coverage",f"{coverage_pct}%","verified public fields","good" if coverage_pct>=75 else "watch")
-with cols[4]: metric_card("Platform fragmentation",f"{gaps.get('platform_fragmentation_index'):.0f}/100" if gaps.get("platform_fragmentation_index") is not None else "Stable / limited","cross-platform variance","risk" if gaps.get("platform_fragmentation_index") is not None and gaps.get("platform_fragmentation_index")>=55 else "")
+for col, card in zip(cols, headline[:5]):
+    with col:
+        metric_card(*card)
 
 st.write("")
 tabs=st.tabs(["◉ Command Center","↗ Monthly Pulse","⌁ Market Map","△ Customer Reality","◎ Attention & Discovery","⇄ Platform Truth","⌘ Data Lab"])
 
 with tabs[0]:
     st.markdown("### The signals worth discussing")
-    for start in range(0,min(6,len(signals)),3):
-        row=st.columns(3)
-        for col,s in zip(row,signals[start:start+3]):
-            with col: signal_card(s)
+    if signals:
+        for start in range(0,min(6,len(signals)),3):
+            row=st.columns(3)
+            for col,s in zip(row,signals[start:start+3]):
+                with col: signal_card(s)
+    else:
+        fallback = []
+        if target.get("positioning_tags"):
+            fallback.append(("Positioning observed", ", ".join(target.get("positioning_tags")[:3]), "Public experience cues currently associated with the restaurant."))
+        if target.get("cuisines"):
+            fallback.append(("Cuisine footprint", ", ".join(target.get("cuisines")[:4]), "Validated cuisine categories surfaced across public sources."))
+        fallback.append(("Source coverage", f"{active_sources} platforms", "Validated restaurant evidence captured in this scan."))
+        row=st.columns(min(3, len(fallback)))
+        for col,(name,value,copy) in zip(row,fallback):
+            with col: gap_card(name,value,copy)
 
 with tabs[1]:
     st.markdown("### Monthly Pulse")
