@@ -32,7 +32,7 @@ from metrics import (
     external_health_score,
 )
 from radar import build_conversation_starters, build_signal_radar
-from search_engine import collect_public_intelligence, resolve_restaurant, similarity
+from search_engine import collect_public_intelligence, resolve_restaurant, similarity, search_web
 from strategy_layer import (
     build_executive_story,
     build_gap_metrics,
@@ -130,6 +130,48 @@ def build_report(restaurant, location):
         if result.get("url")
     ]
     dining_metrics = enrich_dining_metrics_with_pages(dining_metrics, direct_urls)
+
+    # Recovery pass for live-demo reliability. If the normal source plan finds
+    # fewer than two core facts, broaden the query set and accept only results
+    # that resolve strongly back to the requested restaurant/location.
+    core_fields = ["rating", "review_count", "cost_for_two"]
+    observed_core = sum(
+        any(item.get(field) is not None for item in dining_metrics.get("all_results", []))
+        for field in core_fields
+    )
+    if observed_core < 2:
+        recovery_queries = [
+            f'"{restaurant}" "{location}" restaurant rating reviews',
+            f'"{restaurant}" "{location}" "for two"',
+            f'site:district.in/dining "{restaurant}" "{location}"',
+            f'"{restaurant}" "{location}" offer cuisine restaurant',
+        ]
+        recovery_results = []
+        seen_recovery = set()
+        location_tokens = [t for t in location.lower().replace(",", " ").split() if len(t) > 2]
+        for query in recovery_queries:
+            response = search_web(query, 10)
+            for result in response.get("results", []):
+                url = result.get("url") or ""
+                if not url or url in seen_recovery or "zomato.com" in url.lower():
+                    continue
+                identity_score = similarity(restaurant, result.get("title", ""))
+                haystack = f'{result.get("title","")} {result.get("snippet","")}'.lower()
+                location_match = not location_tokens or any(token in haystack for token in location_tokens)
+                if identity_score >= 0.72 or (identity_score >= 0.55 and location_match):
+                    seen_recovery.add(url)
+                    recovery_results.append(result)
+
+        if recovery_results:
+            recovered = extract_dining_metrics(
+                primary_result=None,
+                supporting_results=recovery_results,
+            )
+            for source, items in recovered.get("by_source", {}).items():
+                dining_metrics.setdefault("by_source", {}).setdefault(source, []).extend(items)
+            dining_metrics.setdefault("all_results", []).extend(recovered.get("all_results", []))
+            recovery_urls = [r.get("url") for r in recovery_results if r.get("url")]
+            dining_metrics = enrich_dining_metrics_with_pages(dining_metrics, recovery_urls)
 
     source_summaries = {
         source: summarize_source_results(
