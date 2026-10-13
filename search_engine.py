@@ -223,11 +223,20 @@ def clean_name(text):
 
 
 def similarity(a, b):
-    return SequenceMatcher(
-        None,
-        clean_name(a),
-        clean_name(b),
-    ).ratio()
+    """Restaurant-name match tolerant of source-added location/booking text."""
+    left = clean_name(a)
+    right = clean_name(b)
+    if not left or not right:
+        return 0.0
+    seq = SequenceMatcher(None, left, right).ratio()
+    if left in right or right in left:
+        seq = max(seq, 0.94)
+    left_tokens = {t for t in left.split() if len(t) > 2}
+    right_tokens = {t for t in right.split() if len(t) > 2}
+    if left_tokens:
+        coverage = len(left_tokens & right_tokens) / len(left_tokens)
+        seq = max(seq, coverage * 0.92)
+    return min(seq, 1.0)
 
 
 def find_best_domain_result(results, domains, restaurant_name):
