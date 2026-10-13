@@ -13,7 +13,7 @@ LOW_VALUE_INSTAGRAM_DOMAINS = [
     "inflact.com",
     "igtrackers.com",
 ]
-MAX_SEARCH_WORKERS = 3
+MAX_SEARCH_WORKERS = 2
 
 
 @lru_cache(maxsize=512)
@@ -25,7 +25,11 @@ def search_web(query, max_results=10):
     limited backend cannot blank the complete restaurant scan.
     """
     backend_errors = []
-    backends = ("bing", "brave", "duckduckgo", "google")
+    base_backends = ("bing", "brave", "duckduckgo", "google", "yahoo")
+    # Spread simultaneous queries across providers instead of hammering the same
+    # engine first from a shared Streamlit Cloud IP.
+    offset = sum(ord(ch) for ch in query) % len(base_backends)
+    backends = base_backends[offset:] + base_backends[:offset]
 
     for backend in backends:
         try:
