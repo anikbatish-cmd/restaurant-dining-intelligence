@@ -121,12 +121,14 @@ def build_report(restaurant, location):
         supporting_results=selected,
     )
 
-    direct_urls = []
-    if data.get("district") and data["district"].get("url"):
-        direct_urls.append(data["district"]["url"])
-    if data.get("dineout") and data["dineout"].get("url"):
-        direct_urls.append(data["dineout"]["url"])
-
+    # Enrich every validated restaurant page, not only District/Dineout.
+    # Many restaurants expose price/review data on one source and offers/cuisine
+    # on another; limiting direct fetches was a major source of empty cards.
+    direct_urls = [
+        result.get("url")
+        for result in selected
+        if result.get("url")
+    ]
     dining_metrics = enrich_dining_metrics_with_pages(dining_metrics, direct_urls)
 
     source_summaries = {
